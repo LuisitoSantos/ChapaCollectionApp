@@ -7,6 +7,6 @@ import androidx.room.PrimaryKey
 data class Chapa(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombre: String,
-    val descripcion: String,
+    val pais: String,
     val imagePath: String? = null
 )
