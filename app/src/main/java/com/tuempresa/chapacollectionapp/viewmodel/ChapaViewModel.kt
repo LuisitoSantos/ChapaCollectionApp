@@ -29,10 +29,10 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         }
     }
 
-    fun insertChapa(context: Context, name: String, pais: String, imageUri: Uri?) {
+    fun insertChapa(context: Context, name: String, pais: String, imageUri: Uri?, anio: Int? = null) {
         if(imageUri != null){
             val imagePath = imageUri?.let { copyImageToInternalStorage(context, it) }
-            val chapa = Chapa(nombre = name, pais = pais, imagePath = imagePath)
+            val chapa = Chapa(nombre = name, pais = pais, imagePath = imagePath, anio = anio)
             viewModelScope.launch {
                 repository.insert(chapa)
                 loadChapas() // Actualiza la lista

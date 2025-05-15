@@ -41,6 +41,12 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.12"
     }
+
+    packaging {
+        resources {
+            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+        }
+    }
 }
 
 dependencies {
@@ -68,6 +74,8 @@ dependencies {
     implementation(libs.androidx.camera.core)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.volley)
+    implementation(libs.identity.jvm)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
@@ -87,4 +95,5 @@ dependencies {
     implementation ("androidx.navigation:navigation-compose:2.7.5")
     implementation ("androidx.hilt:hilt-navigation-compose:1.0.0")
     implementation ("androidx.compose.animation:animation:1.5.0") // Usa la versión que coincida con tu Compose
+    implementation("androidx.compose.material:material-icons-extended:1.6.0")
 }

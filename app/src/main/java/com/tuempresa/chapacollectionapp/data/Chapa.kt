@@ -8,5 +8,9 @@ data class Chapa(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombre: String,
     val pais: String,
-    val imagePath: String? = null
+    val imagePath: String? = null,
+    val anio: Int? = null // Nuevo campo opcional
+    //val colorPrimario: String
+    //val colorSecundario1: Strig
+    //val colorSecundario2: String
 )

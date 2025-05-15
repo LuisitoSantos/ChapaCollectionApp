@@ -13,6 +13,8 @@ cameraView = "1.4.2"
 cameraCore = "1.4.2"
 cameraLifecycle = "1.4.2"
 navigationCompose = "2.8.9"
+volley = "1.2.1"
+identityJvm = "202411.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -34,6 +36,8 @@ androidx-camera-view = { group = "androidx.camera", name = "camera-view", versio
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraCore" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraLifecycle" }
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+volley = { group = "com.android.volley", name = "volley", version.ref = "volley" }
+identity-jvm = { group = "com.android.identity", name = "identity-jvm", version.ref = "identityJvm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

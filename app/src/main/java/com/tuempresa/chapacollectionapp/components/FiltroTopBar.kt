@@ -3,6 +3,7 @@ package com.tuempresa.chapacollectionapp.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -35,7 +36,7 @@ fun FiltroTopBar(
                 //Text("Limpiar filtros")
                 Icon(Icons.Default.Refresh, contentDescription = "Limpiar filtros")
             }
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(2.dp))
         }
 
         // Botón: Valores
@@ -66,13 +67,13 @@ fun FiltroTopBar(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(2.dp))
             }
         }
 
         // Botón: Filtrar por...
         IconButton(onClick = { expandedCategoria = true }) {
-            Icon(imageVector = Icons.Default.Search, contentDescription = "Filtrar por")
+            Icon(imageVector = Icons.Default.FilterAlt, contentDescription = "Filtrar por")
             Spacer(modifier = Modifier.width(4.dp))
             //Text("Filtrar por...")
             DropdownMenu(
