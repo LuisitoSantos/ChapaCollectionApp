@@ -23,12 +23,6 @@ jobs:
 
         - name: Set up Gradle
           uses: gradle/gradle-build-action@v2
-          #with:
-            #gradle-version: '7.5.1'
-
-       # - name: Cache Gradle packages
-        #  uses: actions/cache@v3
-        #  with:
 
         - name: Build app
-        run: ./gradlew assemble
+        - run: ./gradlew assemble
