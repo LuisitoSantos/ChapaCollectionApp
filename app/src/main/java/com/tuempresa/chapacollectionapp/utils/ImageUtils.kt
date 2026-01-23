@@ -4,10 +4,17 @@ package com.tuempresa.chapacollectionapp.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Color as AndroidColor
 import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Environment
+import android.util.SizeF
+import android.widget.Toast
 import androidx.compose.ui.geometry.Offset
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
@@ -38,45 +45,199 @@ fun cropCenterSquare(bitmap: Bitmap): Bitmap {
 
 fun recortarImagenVisibleDesdeUri(
     context: Context,
-    uri: Uri,
+    imageUri: Uri,
     scale: Float,
-    offset: Offset,
-    frameSizePx: Float = 512f
+    offset: androidx.compose.ui.geometry.Offset,
+    frameSizePx: Float,
+    maskRadiusPx: Float? = null
 ): Uri? {
-    val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-    val originalBitmap = BitmapFactory.decodeStream(inputStream) ?: return null
+    try {
+        val inputStream = context.contentResolver.openInputStream(imageUri)
+        var bitmap = BitmapFactory.decodeStream(inputStream)
+        inputStream?.close()
+        if (bitmap == null) return null
 
-    val scaledWidth = originalBitmap.width * scale
-    val scaledHeight = originalBitmap.height * scale
+        // Asegurarnos de que la orientación está correcta según EXIF (especialmente para fotos de cámara)
+        bitmap = rotateBitmapIfRequired(context, imageUri, bitmap)
 
-    val left = ((scaledWidth - frameSizePx) / 2f - offset.x).coerceAtLeast(0f)
-    val top = ((scaledHeight - frameSizePx) / 2f - offset.y).coerceAtLeast(0f)
+        val originalWidth = bitmap.width.toFloat()
+        val originalHeight = bitmap.height.toFloat()
 
-    val matrix = Matrix().apply {
-        postScale(scale, scale)
+        // Calculamos el factor con el que la imagen original se ajusta al marco (ContentScale.Fit)
+        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+
+        // Tamaño mostrado antes del zoom
+        val displayedWidth = originalWidth * scaleToDisplay
+        val displayedHeight = originalHeight * scaleToDisplay
+
+        // Tamaño mostrado después del zoom del usuario
+        val displayedWidthZoom = displayedWidth * scale
+        val displayedHeightZoom = displayedHeight * scale
+
+        // Posición inicial (centrada) del bitmap dentro del frame antes de aplicar offset
+        val initialLeft = (frameSizePx - displayedWidthZoom) / 2f
+        val initialTop = (frameSizePx - displayedHeightZoom) / 2f
+
+        // La offset proviene del pointerInput (píxeles en la vista). Usamos directamente para desplazar la imagen.
+        val translateX = offset.x
+        val translateY = offset.y
+
+        val destLeft = initialLeft + translateX
+        val destTop = initialTop + translateY
+        val destRight = destLeft + displayedWidthZoom
+        val destBottom = destTop + displayedHeightZoom
+
+        // Crear bitmap de salida (cuadrado del frame) y dibujar la imagen escalada/trasladada exactamente como en la vista
+        val outSize = kotlin.math.round(frameSizePx).toInt()
+        val outputBitmap = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(outputBitmap)
+        // Fondo blanco
+        canvas.drawColor(AndroidColor.WHITE)
+
+        // Rect destino donde dibujar la imagen (float para evitar truncamientos)
+        val destRect = RectF(destLeft, destTop, destRight, destBottom)
+
+        // Dibujar la imagen escalada en el rect destino
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(bitmap, null, destRect, paint)
+
+        // Aplicar máscara circular usando saveLayer + PorterDuff SRC_IN para recortar con antialias correcto
+        val finalBitmap = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
+        val finalCanvas = Canvas(finalBitmap)
+        finalCanvas.drawColor(AndroidColor.WHITE)
+
+        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val rect = RectF(0f, 0f, outSize.toFloat(), outSize.toFloat())
+        val cx = outSize / 2f
+        val cy = outSize / 2f
+        // La guía en OverlayCuadradoConGuiaCircular usa radius = marcoSize / 2.2f y un grosor por defecto de 1.dp.
+        // Para que el recorte coincida exactamente con la parte interior de la guía (lo que el usuario ve dentro),
+        // restamos la mitad del grosor del trazo (stroke) al radio.
+        val density = context.resources.displayMetrics.density
+        val radius = maskRadiusPx ?: run {
+            val guiaGrosorDp = 1f // valor por defecto en OverlayCuadradoConGuiaCircular
+            val guiaGrosorPx = guiaGrosorDp * density
+            // Substraer mitad de grosor + pequeño epsilon para evitar halos/aliasing
+            val epsilon = 0.5f
+            (frameSizePx / 2.2f) - (guiaGrosorPx / 2f) - epsilon
+        }
+
+        finalCanvas.saveLayer(rect, layerPaint)
+        // Dibujamos la máscara (círculo) en la capa con antialias
+        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        maskPaint.isAntiAlias = true
+        maskPaint.color = AndroidColor.BLACK
+        finalCanvas.drawCircle(cx, cy, radius, maskPaint)
+
+        // Ahora establecemos Xfermode para mantener solo la parte de la imagen dentro del círculo
+        val xferPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        xferPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        finalCanvas.drawBitmap(outputBitmap, 0f, 0f, xferPaint)
+        xferPaint.xfermode = null
+        finalCanvas.restore()
+
+        val outputFile = File(context.cacheDir, "chapa_crop_${System.currentTimeMillis()}.jpg")
+        val outputStream = FileOutputStream(outputFile)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+        outputStream.close()
+
+        return outputFile.toUri()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return null
     }
+}
 
-    val scaledBitmap = Bitmap.createBitmap(
-        originalBitmap,
-        0, 0,
-        originalBitmap.width, originalBitmap.height,
-        matrix, true
-    )
+fun recortarImagenVisibleDesdeBitmap(
+    context: Context,
+    bitmap: Bitmap,
+    scale: Float,
+    offset: androidx.compose.ui.geometry.Offset,
+    frameSizePx: Float,
+    maskRadiusPx: Float? = null
+): Uri? {
+    try {
+        val bmp = bitmap // bitmap ya debería estar rotado si procede
 
-    val cropped = Bitmap.createBitmap(
-        scaledBitmap,
-        left.toInt().coerceAtMost(scaledBitmap.width - frameSizePx.toInt()),
-        top.toInt().coerceAtMost(scaledBitmap.height - frameSizePx.toInt()),
-        frameSizePx.toInt(),
-        frameSizePx.toInt()
-    )
+        val originalWidth = bmp.width.toFloat()
+        val originalHeight = bmp.height.toFloat()
 
-    val file = File(context.cacheDir, "chapa_recortada_${System.currentTimeMillis()}.jpg")
-    val output = FileOutputStream(file)
-    cropped.compress(Bitmap.CompressFormat.JPEG, 90, output)
-    output.close()
+        // Calculamos el factor con el que la imagen original se ajusta al marco (ContentScale.Fit)
+        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
 
-    return file.toUri()
+        // Tamaño mostrado antes del zoom
+        val displayedWidth = originalWidth * scaleToDisplay
+        val displayedHeight = originalHeight * scaleToDisplay
+
+        // Tamaño mostrado después del zoom del usuario
+        val displayedWidthZoom = displayedWidth * scale
+        val displayedHeightZoom = displayedHeight * scale
+
+        // Posición inicial (centrada) del bitmap dentro del frame antes de aplicar offset
+        val initialLeft = (frameSizePx - displayedWidthZoom) / 2f
+        val initialTop = (frameSizePx - displayedHeightZoom) / 2f
+
+        // La offset proviene del pointerInput (píxeles en la vista). Usamos directamente para desplazar la imagen.
+        val translateX = offset.x
+        val translateY = offset.y
+
+        val destLeft = initialLeft + translateX
+        val destTop = initialTop + translateY
+        val destRight = destLeft + displayedWidthZoom
+        val destBottom = destTop + displayedHeightZoom
+
+        // Crear bitmap de salida (cuadrado del frame) y dibujar la imagen escalada/trasladada exactamente como en la vista
+        val outSize = kotlin.math.round(frameSizePx).toInt()
+        val outputBitmap = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(outputBitmap)
+        // Fondo blanco
+        canvas.drawColor(AndroidColor.WHITE)
+
+        // Rect destino donde dibujar la imagen (float para evitar truncamientos)
+        val destRect = RectF(destLeft, destTop, destRight, destBottom)
+
+        // Dibujar la imagen escalada en el rect destino
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        canvas.drawBitmap(bmp, null, destRect, paint)
+
+        // Aplicar máscara circular usando saveLayer + PorterDuff SRC_IN
+        val finalBitmap = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
+        val finalCanvas = Canvas(finalBitmap)
+        finalCanvas.drawColor(AndroidColor.WHITE)
+
+        val layerPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val rect = RectF(0f, 0f, outSize.toFloat(), outSize.toFloat())
+        val cx = outSize / 2f
+        val cy = outSize / 2f
+        val density2 = context.resources.displayMetrics.density
+        val radius = maskRadiusPx ?: run {
+            val guiaGrosorPx2 = 1f * density2
+            val epsilon = 0.5f
+            (frameSizePx / 2.2f) - (guiaGrosorPx2 / 2f) - epsilon
+        }
+
+        finalCanvas.saveLayer(rect, layerPaint)
+        val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        maskPaint.isAntiAlias = true
+        maskPaint.color = AndroidColor.BLACK
+        finalCanvas.drawCircle(cx, cy, radius, maskPaint)
+
+        val xferPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+        xferPaint.xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.SRC_IN)
+        finalCanvas.drawBitmap(outputBitmap, 0f, 0f, xferPaint)
+        xferPaint.xfermode = null
+        finalCanvas.restore()
+
+        val outputFile = File(context.cacheDir, "chapa_crop_${System.currentTimeMillis()}.jpg")
+        val outputStream = FileOutputStream(outputFile)
+        finalBitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+        outputStream.close()
+
+        return outputFile.toUri()
+    } catch (e: Exception) {
+        e.printStackTrace()
+        return null
+    }
 }
 
 fun rotateBitmapIfRequired(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {

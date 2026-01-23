@@ -17,12 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.data.Chapa
-import java.io.File
 
 
 
@@ -55,9 +53,9 @@ fun ChapaCard(
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
                 Row (
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        //.padding(16.dp) //tamaño de la tarjeta, igual modificar esto si la foto esta muy pegada, o hacer la foto mas pequeña
+                     modifier = Modifier
+                         .fillMaxWidth()
+                         //.padding(16.dp) //tamaño de la tarjeta, igual modificar esto si la foto esta muy pegada, o hacer la foto mas pequeña
                 ){
                     Column(
                         modifier = Modifier
@@ -78,8 +76,9 @@ fun ChapaCard(
                         //Spacer(modifier = Modifier.height(8.dp))
                     }
                     //Spacer(modifier = Modifier.width(80.dp)) //Separacion entre testo e imagen chapa. Si separo mas, se montan los botones de edicion y eliminar
+                    val imageModel = chapa.imagePath ?: ""
                     Image(
-                        painter = rememberAsyncImagePainter(File(chapa.imagePath)),
+                        painter = rememberAsyncImagePainter(imageModel),
                         contentDescription = "Imagen de la chapa",
                         modifier = Modifier
                             .size(100.dp)
@@ -90,7 +89,6 @@ fun ChapaCard(
                             .clickable { onImageClick() }
                     )
                 }
-
 
                 if (enEdicion) {
                     Row(
@@ -105,6 +103,18 @@ fun ChapaCard(
                             Icon(Icons.Default.Delete, contentDescription = "Eliminar")
                         }
                     }
+                }
+
+                // Mostrar badge de estado: si es null -> 'ND' (no definido), si no -> 'xx%'
+                Box(modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(end = 16.dp, top = 8.dp)
+                    .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(8.dp))
+                    .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    val text = chapa.estadoPercent?.let { "$it%" } ?: "ND"
+                    Text(text = text, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }

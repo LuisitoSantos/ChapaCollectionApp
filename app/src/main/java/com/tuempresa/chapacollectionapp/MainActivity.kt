@@ -22,12 +22,21 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
 import androidx.compose.material.Text
+import com.tuempresa.chapacollectionapp.ui.screens.SearchChapaScreen
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.Icon
+
+// ... (tus imports anteriores se mantienen)
+
+// ... (tus imports anteriores se mantienen)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Inicializamos la base de datos y el repositorio
         val database = ChapaDatabase.getDatabase(this)
         val repository = ChapaRepository(database.chapaDao())
         val factory = ChapaViewModelFactory(repository)
@@ -37,18 +46,33 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val viewModel: ChapaViewModel = viewModel(factory = factory)
 
-                // Scaffold con barra de navegación inferior
                 Scaffold(
                     bottomBar = {
                         BottomNavigation {
-                            val currentRoute =
-                                navController.currentBackStackEntryAsState().value?.destination?.route
-                            listOf(Screen.Lista, Screen.Anadir).forEach { screen ->
+                            val navBackStackEntry = navController.currentBackStackEntryAsState().value
+                            val currentRoute = navBackStackEntry?.destination?.route
+
+                            listOf(Screen.Lista, Screen.Buscar, Screen.Anadir).forEach { screen ->
                                 BottomNavigationItem(
                                     selected = currentRoute == screen.route,
-                                    onClick = { navController.navigate(screen.route) },
+                                    onClick = {
+                                        navController.navigate(screen.route) {
+                                            popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
+                                    },
                                     label = { Text(screen.label) },
-                                    icon = {}
+                                    icon = {
+                                        // Añadimos iconos para que se vea mejor
+                                        val icon = when(screen) {
+                                            Screen.Lista -> Icons.Default.List
+                                            Screen.Buscar -> Icons.Default.Search
+                                            Screen.Anadir -> Icons.Default.Add
+                                            else -> Icons.Default.Search
+                                        }
+                                        Icon(icon, contentDescription = null)
+                                    }
                                 )
                             }
                         }
@@ -62,6 +86,12 @@ class MainActivity : ComponentActivity() {
                         composable(Screen.Lista.route) {
                             ChapaListScreen(viewModel, navController)
                         }
+
+                        // CAMBIO AQUÍ: Llamamos a la nueva pantalla
+                        composable(Screen.Buscar.route) {
+                            SearchChapaScreen(viewModel, navController)
+                        }
+
                         composable(Screen.Anadir.route) {
                             AddChapaScreen(viewModel, navController)
                         }

@@ -1,10 +1,6 @@
-// Archivo: ui/screens/ChapaListScreen.kt
 package com.tuempresa.chapacollectionapp.ui.screens
 
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,50 +15,140 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.ViewList
+// SwipeToDismiss todavía en material (no material3)
+import androidx.compose.material.SwipeToDismiss
+import androidx.compose.material.DismissDirection
+import androidx.compose.material.DismissState
+import androidx.compose.material.DismissValue
 import androidx.compose.material.rememberDismissState
-import androidx.compose.material3.*
+
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.zIndex
+
 import androidx.navigation.NavHostController
+
 import coil.compose.rememberAsyncImagePainter
+
 import com.tuempresa.chapacollectionapp.data.Chapa
-import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
-import java.io.File
 import com.tuempresa.chapacollectionapp.components.ChapaCard
 import com.tuempresa.chapacollectionapp.components.FiltroTopBar
 import com.tuempresa.chapacollectionapp.components.ImageDialog
 
-import androidx.compose.material.DismissDirection
-import androidx.compose.material.DismissState
-import androidx.compose.material.DismissValue
-import androidx.compose.material.SwipeToDismiss
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.ViewList
-import androidx.compose.material.rememberDismissState
-import androidx.compose.material3.Card
-import androidx.compose.ui.draw.alpha
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
+import java.io.File
+
+// Material3
+import androidx.compose.material3.*
+
+// Fin de imports
+
+// Composable que dibuja un contorno tipo "chapa" con dientes regulares (triángulos)
+@Composable
+fun ChapaOutline(
+    modifier: Modifier = Modifier,
+    color: Color,
+    strokeWidthDp: Dp = 1.dp,
+    teeth: Int = 20
+) {
+    Canvas(modifier = modifier) {
+        val baseStroke = strokeWidthDp.toPx()
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val center = Offset(cx, cy)
+
+        // Base radius where teeth start
+        val outerAvailable = min(w, h) / 2f - baseStroke
+
+        // Tooth geometry (más pequeño para evitar zonas gruesas)
+        // Hacemos los dientes un poco más largos y el radio de la punta algo mayor
+        // Incrementamos ligeramente las dimensiones para mejorar la legibilidad
+        val toothLen = outerAvailable * 0.22f
+        val innerRadius = outerAvailable - toothLen * 0.5f
+        val tipRadius = outerAvailable + toothLen * 0.35f
+
+        val toothAngle = (2 * PI / teeth).toFloat()
+        val halfBaseAngle = toothAngle * 0.18f // base estrecha para puntas más definidas
+
+        // Grosores finos y uniformes (más delgados para mantener los huecos visibles)
+        val toothStroke = (baseStroke * 0.3f).coerceAtLeast(0.6f)
+        val rimStroke = (baseStroke * 0.45f).coerceAtLeast(0.6f)
+        val outerStroke = (baseStroke * 0.45f).coerceAtLeast(0.6f)
+
+        // Precalcular puntos de puntas e interiores
+        val tipPoints = Array(teeth) { Offset.Zero }
+        val innerPoints = Array(teeth) { Offset.Zero }
+        for (i in 0 until teeth) {
+            val angle = i * toothAngle
+            tipPoints[i] = Offset(cx + tipRadius * cos(angle), cy + tipRadius * sin(angle))
+            innerPoints[i] = Offset(cx + innerRadius * cos(angle), cy + innerRadius * sin(angle))
+        }
+
+        // Dibujar los dientes como dos líneas (lado izquierdo y lado derecho) hacia la punta
+        for (i in 0 until teeth) {
+            val angle = i * toothAngle
+            val leftAngle = angle - halfBaseAngle
+            val rightAngle = angle + halfBaseAngle
+
+            val leftInner = Offset(cx + innerRadius * cos(leftAngle), cy + innerRadius * sin(leftAngle))
+            val rightInner = Offset(cx + innerRadius * cos(rightAngle), cy + innerRadius * sin(rightAngle))
+            val tip = tipPoints[i]
+
+            // Líneas finas desde el borde interior hasta la punta (evita triángulos cerrados gruesos)
+            drawLine(color = color, start = leftInner, end = tip, strokeWidth = toothStroke, cap = StrokeCap.Round)
+            drawLine(color = color, start = rightInner, end = tip, strokeWidth = toothStroke, cap = StrokeCap.Round)
+        }
+
+        // Contorno exterior: unir las puntas con un trazo fino
+        val tipPath = Path()
+        for (i in tipPoints.indices) {
+            val p = tipPoints[i]
+            if (i == 0) tipPath.moveTo(p.x, p.y) else tipPath.lineTo(p.x, p.y)
+        }
+        tipPath.close()
+        drawPath(path = tipPath, color = color, style = Stroke(width = outerStroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
+
+        // Borde interior circular (rim) más fino
+        drawCircle(
+            color = color,
+            center = center,
+            radius = innerRadius - baseStroke * 0.6f,
+            style = Stroke(width = rimStroke, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
     val chapas by viewModel.allChapas.observeAsState(emptyList())
 
-    val categoriasDisponibles = listOf("Nombre", "Pais") // Más adelante puedes añadir "Pais", etc.
+    val categoriasDisponibles = listOf("Nombre", "Pais")
     var categoriaSeleccionada by remember { mutableStateOf<String?>(null) }
 
     val valoresSeleccionados = remember { mutableStateListOf<String>() }
@@ -70,13 +156,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     val chapaAEditar = remember { mutableStateOf<Chapa?>(null) }
     val chapasEnEdicion = remember { mutableStateOf(setOf<Int>()) }
 
-    var nombreSeleccionado by remember { mutableStateOf<String?>(null) }
     var imagenSeleccionada by remember { mutableStateOf<String?>(null) }
 
-    val context = LocalContext.current
-
     var vistaCuadricula by remember { mutableStateOf(false) }
-
 
     // Aplicar filtro si hay nombre seleccionado
     val chapasFiltradas = chapas.filter {
@@ -87,13 +169,11 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         }
     }.sortedBy { it.nombre.lowercase() }
 
-
     val valoresDisponibles = when (categoriaSeleccionada) {
         "Nombre" -> chapas.map { it.nombre }.distinct().sorted()
         "Pais" -> chapas.map { it.pais }.distinct().sorted()
         else -> emptyList()
     }
-
 
     // Mostrar pantalla de edición si hay una chapa seleccionada
     chapaAEditar.value?.let { chapa ->
@@ -110,50 +190,80 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         return
     }
 
-    // Contenedor principal
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = { chapasEnEdicion.value = emptySet() })
-            }
+            .pointerInput(Unit) { detectTapGestures(onTap = { chapasEnEdicion.value = emptySet() }) }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Cabecera: Botón + Filtro
-            Row(
+            // Cabecera: usar un Box para mantener el contador siempre centrado
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(8.dp)
+                    .height(56.dp) // altura fija para evitar cambios al desplegar filtros
             ) {
-                IconButton(onClick = { vistaCuadricula = !vistaCuadricula }) {
-                    Icon(
-                        imageVector = if (vistaCuadricula) Icons.Default.ViewList else Icons.Default.GridView, //Importar esots otros iconos: ViewList y GridView
-                        contentDescription = "Cambiar vista"
-                    )
+                // Row con extremos (izquierda: icono, derecha: filtros)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { vistaCuadricula = !vistaCuadricula }) {
+                        Icon(
+                            imageVector = if (vistaCuadricula) Icons.Filled.ViewList else Icons.Filled.GridView,
+                            contentDescription = "Cambiar vista"
+                        )
+                    }
+
+                    Box(modifier = Modifier.wrapContentWidth()) {
+                        FiltroTopBar(
+                            categoriasDisponibles = categoriasDisponibles,
+                            valoresDisponibles = valoresDisponibles,
+                            valoresSeleccionados = valoresSeleccionados,
+                            categoriaSeleccionada = categoriaSeleccionada,
+                            onCategoriaSeleccionada = { categoriaSeleccionada = it },
+                            onValorSeleccionado = { valor ->
+                                if (valoresSeleccionados.contains(valor)) {
+                                    valoresSeleccionados.remove(valor)
+                                } else {
+                                    valoresSeleccionados.add(valor)
+                                }
+                            },
+                            onLimpiarFiltros = {
+                                categoriaSeleccionada = null
+                                valoresSeleccionados.clear()
+                            }
+                        )
+                    }
                 }
 
-                // Filtro
-                FiltroTopBar(
-                    categoriasDisponibles = categoriasDisponibles,
-                    valoresDisponibles = valoresDisponibles,
-                    valoresSeleccionados = valoresSeleccionados,
-                    categoriaSeleccionada = categoriaSeleccionada,
-                    onCategoriaSeleccionada = { categoriaSeleccionada = it },
-                    onValorSeleccionado = { valor ->
-                        if (valoresSeleccionados.contains(valor)) {
-                            valoresSeleccionados.remove(valor)
-                        } else {
-                            valoresSeleccionados.add(valor)
-                        }
-                    },
-                    onLimpiarFiltros = {
-                        categoriaSeleccionada = null
-                        valoresSeleccionados.clear()
+                // Contador centrado por encima del Row (overlay estable)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .zIndex(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
+
+                    Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                        ChapaOutline(
+                            modifier = Modifier.fillMaxSize(),
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
+                            strokeWidthDp = 1.dp,
+                            teeth = 16
+                        )
+
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        )
                     }
-                )
+                }
             }
 
             Spacer(modifier = Modifier.height(2.dp))
@@ -166,21 +276,34 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(
-                        items = chapasFiltradas,
-                        key = { it.id } // clave única para que Compose sepa qué item es cuál
-                    ) { chapa ->
-                        Image(
-                            painter = rememberAsyncImagePainter(File(chapa.imagePath)),
-                            contentDescription = "Imagen de la chapa",
-                            modifier = Modifier
-                                .aspectRatio(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                                .clickable {
-                                    imagenSeleccionada = chapa.imagePath
-                                }
-                        )
+                    items(items = chapasFiltradas, key = { it.id }) { chapa ->
+                        Box(modifier = Modifier
+                            .aspectRatio(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .clickable { imagenSeleccionada = chapa.imagePath }
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
+                                contentDescription = "Imagen de la chapa",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                            )
+
+                            // Badge porcentaje: 'ND' si null, o 'xx%'
+                            Box(modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(6.dp)
+                                .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(6.dp))
+                                .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                val text = chapa.estadoPercent?.let { "$it%" } ?: "ND"
+                                Text(text = text, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
                     }
                 }
             } else {
@@ -188,31 +311,13 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 var chapaAEliminar by remember { mutableStateOf<Chapa?>(null) }
                 val dismissStates = remember { mutableStateMapOf<Int, DismissState>() }
                 val scope = rememberCoroutineScope()
-                val onEditar: (Chapa) -> Unit = { chapa ->
-                    chapaAEditar.value = chapa
-                }
-
-                val onEliminar: (Chapa) -> Unit = { chapa ->
-                    chapaAEliminar = chapa
-                    mostrarConfirmacion = true
-                }
-
-
+                val onEditar: (Chapa) -> Unit = { chapa -> chapaAEditar.value = chapa }
+                val onEliminar: (Chapa) -> Unit = { chapa -> chapaAEliminar = chapa; mostrarConfirmacion = true }
 
                 LazyColumn {
-
-                    @OptIn(ExperimentalMaterialApi::class)
                     items(chapasFiltradas) { chapa ->
                         val dismissState = rememberDismissState()
                         dismissStates[chapa.id] = dismissState
-
-                        //Fade de los iconos al desplazar tarjeta
-                        /*val progress = dismissState.progress.fraction
-
-                        val iconAlpha by animateFloatAsState(
-                            targetValue = progress.coerceIn(0f, 1f),
-                            label = "IconAlpha"
-                        )*/
 
                         LaunchedEffect(dismissState.currentValue) {
                             when {
@@ -222,25 +327,19 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                                 }
                                 dismissState.isDismissed(DismissDirection.StartToEnd) -> {
                                     onEditar(chapa)
-                                    // Restablece el estado después de editar
-                                    scope.launch {
-                                        dismissState.animateTo(DismissValue.Default)
-                                    }
+                                    scope.launch { dismissState.animateTo(DismissValue.Default) }
                                 }
                             }
                         }
 
                         SwipeToDismiss(
                             state = dismissState,
-                            directions = setOf(
-                                DismissDirection.StartToEnd,
-                                DismissDirection.EndToStart
-                            ),
+                            directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
                             background = {
                                 val direction = dismissState.dismissDirection
                                 val color = when (direction) {
-                                    DismissDirection.StartToEnd -> Color(0xFFBBDEFB) // Azul claro
-                                    DismissDirection.EndToStart -> Color(0xFFFFCDD2) // Rojo claro
+                                    DismissDirection.StartToEnd -> Color(0xFFBBDEFB)
+                                    DismissDirection.EndToStart -> Color(0xFFFFCDD2)
                                     else -> Color.Transparent
                                 }
                                 val icon = when (direction) {
@@ -252,112 +351,55 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(horizontal = 12.dp, vertical = 4.dp) // Igual que la tarjeta
-                                        .clip(RoundedCornerShape(12.dp)) // Mismo shape que la tarjeta
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                                        .clip(RoundedCornerShape(12.dp))
                                         .background(color),
-                                    contentAlignment = if (direction == DismissDirection.StartToEnd)
-                                        Alignment.CenterStart else Alignment.CenterEnd
+                                    contentAlignment = if (direction == DismissDirection.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                                 ) {
                                     icon?.let {
-                                        Icon(
-                                            imageVector = it,
-                                            contentDescription = null,
-                                            modifier = Modifier
-                                                .padding(horizontal = 16.dp)
-                                                .size(24.dp)
-                                                //.alpha(iconAlpha) //Fade de los iconos al desplazar tarjeta
-                                        )
+                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier.padding(horizontal = 16.dp).size(24.dp))
                                     }
                                 }
                             },
                             dismissContent = {
                                 ChapaCard(
                                     chapa = chapa,
-                                    enEdicion = false, // ya no se usa modo edición por separado
+                                    enEdicion = false,
                                     onEditar = { onEditar(chapa) },
                                     onEliminar = { onEliminar(chapa) },
-                                    onLongPress = {}, // ya no hace falta
+                                    onLongPress = {},
                                     onTap = {},
                                     onImageClick = { imagenSeleccionada = chapa.imagePath }
                                 )
                             }
                         )
-                        //Spacer(modifier = Modifier.height(4.dp)) // Previene superposición visual
                     }
-
-
-                    //Antiguo listado de tarjetas con pulsacion larga para mostrar los botones de editar y eliminar
-                    /*items(chapasFiltradas) { chapa ->
-                        val enEdicion = chapa.id in chapasEnEdicion.value
-
-                        ChapaCard(
-                            chapa = chapa,
-                            enEdicion = enEdicion,
-                            onEditar = { chapaAEditar.value = chapa },
-                            onEliminar = {
-                                viewModel.deleteChapa(chapa)
-                                chapasEnEdicion.value = chapasEnEdicion.value - chapa.id
-                            },
-                            onLongPress = {
-                                chapasEnEdicion.value = chapasEnEdicion.value + chapa.id
-                            },
-                            onTap = {
-                                chapasEnEdicion.value = chapasEnEdicion.value - chapa.id
-                            },
-                            onImageClick = {
-                                imagenSeleccionada = chapa.imagePath
-                            }
-                        )
-                    }*/
                 }
+
                 if (mostrarConfirmacion && chapaAEliminar != null) {
                     AlertDialog(
-                        onDismissRequest = {
-                            mostrarConfirmacion = false
-                            chapaAEliminar = null
-                        },
+                        onDismissRequest = { mostrarConfirmacion = false; chapaAEliminar = null },
                         title = { Text("Confirmar eliminación") },
                         text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
                         confirmButton = {
                             TextButton(onClick = {
                                 viewModel.deleteChapa(chapaAEliminar!!)
                                 val state = dismissStates[chapaAEliminar!!.id]
-                                scope.launch {
-                                    state?.animateTo(DismissValue.Default)
-                                }
+                                scope.launch { state?.animateTo(DismissValue.Default) }
                                 chapasEnEdicion.value = chapasEnEdicion.value - chapaAEliminar!!.id
                                 mostrarConfirmacion = false
                                 chapaAEliminar = null
-                            }) {
-                                Text("Eliminar")
-                            }
+                            }) { Text("Eliminar") }
                         },
                         dismissButton = {
-                            TextButton(onClick = {
-                                mostrarConfirmacion = false
-                                chapaAEliminar?.let {
-                                    val state = dismissStates[it.id]
-                                    scope.launch {
-                                        state?.animateTo(DismissValue.Default)
-                                    }
-                                }
-                                chapaAEliminar = null
-                            }) {
-                                Text("Cancelar")
-                            }
+                            TextButton(onClick = { mostrarConfirmacion = false; chapaAEliminar = null }) { Text("Cancelar") }
                         }
                     )
                 }
-
             }
-
         }
 
         // Diálogo de imagen ampliada
-        ImageDialog(
-            imageUri = null,
-            imagePath = imagenSeleccionada,
-            onDismiss = { imagenSeleccionada = null }
-        )
+        ImageDialog(imageUri = null, imagePath = imagenSeleccionada, onDismiss = { imagenSeleccionada = null })
     }
 }
