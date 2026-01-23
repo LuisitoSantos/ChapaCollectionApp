@@ -21,8 +21,12 @@ jobs:
           java-version: '17'
           cache: gradle
 
-      - name: Run unit tests
+      - name: 🧪 Run unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Android Test Report
+        uses: asadmansr/android-test-report-action@v1
+        if: ${{ always() }}
 
   build:
     runs-on: ubuntu-latest
@@ -41,6 +45,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/gradle-build-action@v2
 
-      - name: Build app
+      - name: 🏗️ Build app
         run: ./gradlew assembleDebug --stacktrace
 
