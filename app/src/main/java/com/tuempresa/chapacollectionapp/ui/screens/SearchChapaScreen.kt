@@ -1,5 +1,8 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,6 +40,7 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
     var imageUri by remember { mutableStateOf<Uri?>(null) }
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     // Obtenemos los resultados del ViewModel
     val resultados = viewModel.resultadosBusqueda
@@ -104,11 +108,21 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
-                    onClick = { viewModel.buscarCoincidencias(imageUri!!) },
+                    onClick = {
+                        imageUri?.let { uri ->
+                            // Generamos el recorte con zoom antes de enviarlo
+                            val bitmapProcesado = obtenerBitmapConZoom(context, uri, scale, offset, 300)
+                            viewModel.buscarCoincidencias(bitmapProcesado, context)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF4CAF50))
+                    enabled = !viewModel.estaBuscando
                 ) {
-                    Text("Buscar Coincidencias", color = Color.White)
+                    if (viewModel.estaBuscando) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White)
+                    } else {
+                        Text("Buscar Coincidencias")
+                    }
                 }
             }
         }
@@ -158,4 +172,32 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
             }
         }
     }
+}
+
+fun obtenerBitmapConZoom(context: Context, uri: Uri, scale: Float, offset: Offset, sizeDp: Int): Bitmap? {
+    val inputStream = context.contentResolver.openInputStream(uri)
+    val original = BitmapFactory.decodeStream(inputStream) ?: return null
+
+    // El tamaño visual es 300dp, necesitamos convertirlo a píxeles reales según la densidad del móvil
+    val density = context.resources.displayMetrics.density
+    val sizePx = (sizeDp * density).toInt()
+
+    // Creamos un bitmap vacío del tamaño del visor
+    val resultado = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(resultado)
+
+    val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+
+    // Aplicamos las transformaciones (Escala y Traslación)
+    val matrix = android.graphics.Matrix()
+
+    // Centramos el bitmap original en el canvas
+    val startX = (sizePx - original.width * scale) / 2f + (offset.x * density)
+    val startY = (sizePx - original.height * scale) / 2f + (offset.y * density)
+
+    matrix.postScale(scale, scale)
+    matrix.postTranslate(startX, startY)
+
+    canvas.drawBitmap(original, matrix, paint)
+    return resultado
 }

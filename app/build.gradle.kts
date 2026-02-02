@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.volley)
     implementation(libs.identity.jvm)
+    implementation(libs.androidx.exifinterface)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
@@ -96,4 +97,5 @@ dependencies {
     implementation ("androidx.hilt:hilt-navigation-compose:1.0.0")
     implementation ("androidx.compose.animation:animation:1.5.0") // Usa la versión que coincida con tu Compose
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
+    implementation("androidx.exifinterface:exifinterface:1.3.6")
 }
