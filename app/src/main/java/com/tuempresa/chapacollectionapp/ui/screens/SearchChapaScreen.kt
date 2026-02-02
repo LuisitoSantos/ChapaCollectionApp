@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.runtime.*
@@ -36,6 +38,13 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
+import androidx.core.content.FileProvider
+import java.io.File
+import java.util.Objects
+import kotlin.text.isNullOrBlank
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+
 
 @Composable
 fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) {
@@ -43,17 +52,100 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val context = androidx.compose.ui.platform.LocalContext.current
+    val tempCameraUri = remember { mutableStateOf<Uri?>(null) }
+    var umbralSeleccionado by remember { mutableStateOf(40f) } // Valor inicial del 40%
+    var showDialog by remember { mutableStateOf(false) }
+    var selectedImagePath by remember { mutableStateOf("") }
 
-    // Obtenemos los resultados del ViewModel
-    val resultados = viewModel.resultadosBusqueda
+    LaunchedEffect(Unit) {
+        // Limpiamos los resultados y la imagen para que al entrar esté vacío
+        viewModel.resultadosBusqueda = emptyList()
+        viewModel.estaBuscando = false
+        imageUri = null
+        // Nota: imageUri = null funciona aquí porque imageUri está definida arriba
+    }
 
-    val launcher = rememberLauncherForActivityResult(
+    val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         imageUri = uri
         scale = 1f
         offset = Offset.Zero
     }
+
+    // Launcher para CÁMARA
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            tempCameraUri.value?.let { uri ->
+                imageUri = uri
+                scale = 1f
+                offset = Offset.Zero
+            }
+        }
+    }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permiso concedido, ahora lanzamos la cámara
+            val uri = createImageUri(context)
+            tempCameraUri.value = uri
+            cameraLauncher.launch(uri)
+        } else {
+            // El usuario denegó el permiso, podrías mostrar un mensaje si quieres.
+        }
+    }
+
+    // Si quieres mostrar la imagen en grande al pulsarla
+    // Diálogo de imagen a pantalla completa (estilo Galería)
+    if (showDialog && selectedImagePath.isNotEmpty()) {
+        Dialog(
+            onDismissRequest = { showDialog = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false // Permite que el diálogo ocupe toda la pantalla
+            )
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.2f)) // Fondo oscurecido degradado
+                    .clickable { showDialog = false }, // Al tocar en cualquier lado se cierra
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    shape = RoundedCornerShape(12.dp),
+                    elevation = 8.dp,
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .wrapContentSize()
+                        .clickable(enabled = false) { } // Evita que el click en la imagen cierre el diálogo
+                ) {
+                    Image(
+                        painter = rememberAsyncImagePainter(selectedImagePath),
+                        contentDescription = "Vista ampliada",
+                        modifier = Modifier
+                            .fillMaxWidth(0.95f) // Ocupa el 95% del ancho
+                            .wrapContentHeight(),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+
+                // Opcional: Una X pequeña en la esquina superior para indicar cierre
+                Text(
+                    text = "Toca en cualquier lugar para cerrar",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.caption,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 40.dp)
+                )
+            }
+        }
+    }
+
 
     // Usamos LazyColumn para que toda la pantalla sea scrolleable si hay muchos resultados
     LazyColumn(
@@ -63,12 +155,11 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            Text("Buscador de Chapas", style = MaterialTheme.typography.h5)
-            Spacer(modifier = Modifier.height(20.dp))
-
+            //Text("Buscador de Chapas", style = MaterialTheme.typography.h5)
+            //Spacer(modifier = Modifier.height(20.dp))
             Box(
                 modifier = Modifier
-                    .size(300.dp)
+                    .size(250.dp)
                     .clip(CircleShape)
                     .background(Color.LightGray)
                     .border(2.dp, Color.Gray, CircleShape)
@@ -84,7 +175,7 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
                 if (imageUri != null) {
                     Image(
                         painter = rememberAsyncImagePainter(imageUri),
-                        contentDescription = null,
+                        contentDescription = "Imagen seleccionada para búsqueda",
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer(
@@ -95,25 +186,81 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
                             ),
                         contentScale = ContentScale.Fit
                     )
+                } else {
+                    Icon(Icons.Default.CameraAlt, contentDescription = "Marcador de posición de cámara", modifier = Modifier.size(50.dp), tint = Color.White)
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            Button(onClick = { launcher.launch("image/*") }, modifier = Modifier.fillMaxWidth()) {
-                Text("Seleccionar Imagen")
+            // BOTONES DE ORIGEN DE IMAGEN
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(onClick = { galleryLauncher.launch("image/*") }, modifier = Modifier.weight(1f)) {
+                    Text("Galería")
+                }
+
+                // --> BOTÓN DE CÁMARA CORREGIDO
+                Button(
+                    onClick = {
+                        try {
+                            val permission = android.Manifest.permission.CAMERA
+                            if (context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                                val uri = createImageUri(context)
+                                tempCameraUri.value = uri
+                                cameraLauncher.launch(uri)
+                            } else {
+                                cameraPermissionLauncher.launch(permission)
+                            }
+                        } catch (e: Exception) {
+                            // Esto evitará que la app se cierre y te dirá el error en el Logcat
+                            android.util.Log.e("CAMERA_ERROR", "Error al abrir cámara: ${e.message}")
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Cámara")
+                }
             }
         }
 
-        if (imageUri != null) {
-            item {
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- NUEVO: SECCIÓN DEL SLIDER ---
+            Text(
+                text = "Precisión de búsqueda: ${umbralSeleccionado.toInt()}%",
+                style = MaterialTheme.typography.body2,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Start
+            )
+            Slider(
+                value = umbralSeleccionado,
+                onValueChange = { umbralSeleccionado = it },
+                valueRange = 10f..100f, // Rango del 10% al 100%
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colors.primary,
+                    activeTrackColor = MaterialTheme.colors.primary
+                )
+            )
+            Text(
+                text = if (umbralSeleccionado < 30f) "Baja (más resultados, menos precisos)"
+                else if (umbralSeleccionado > 60f) "Alta (pocos resultados, muy precisos)"
+                else "Normal",
+                style = MaterialTheme.typography.caption,
+                color = Color.Gray
+            )
+            if (imageUri != null) {
                 Spacer(modifier = Modifier.height(16.dp))
+
                 Button(
                     onClick = {
                         imageUri?.let { uri ->
-                            // Generamos el recorte con zoom antes de enviarlo
                             val bitmapProcesado = obtenerBitmapConZoom(context, uri, scale, offset, 300)
-                            viewModel.buscarCoincidencias(bitmapProcesado, context)
+                            // PASAMOS EL UMBRAL AL VIEWMODEL
+                            viewModel.buscarCoincidencias(bitmapProcesado, context, umbralSeleccionado)
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -175,24 +322,55 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable { navController.navigate("edit/${chapa.id}") },
-                        elevation = 2.dp
+                            .padding(vertical = 4.dp),
+                        // SE HA ELIMINADO EL .clickable DE AQUÍ PARA QUE NO CIERRE LA APP
+                        elevation = 2.dp,
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(8.dp),
+                            modifier = Modifier.padding(12.dp).fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // IMAGEN (Mantenemos el clic aquí para el diálogo)
                             Image(
                                 painter = rememberAsyncImagePainter(chapa.imagePath),
                                 contentDescription = null,
                                 modifier = Modifier
-                                    .size(50.dp)
-                                    .clip(CircleShape),
+                                    .size(60.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.LightGray)
+                                    .clickable {
+                                        try {
+                                            if (!chapa.imagePath.isNullOrEmpty()) {
+                                                selectedImagePath = chapa.imagePath!!
+                                                showDialog = true
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("DEBUG_IMAGE", "Error: ${e.message}")
+                                        }
+                                    },
                                 contentScale = ContentScale.Crop
                             )
+
                             Spacer(modifier = Modifier.width(16.dp))
-                            Text(text = chapa.nombre, style = MaterialTheme.typography.body1)
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = chapa.nombre,
+                                    style = MaterialTheme.typography.subtitle1,
+                                    color = MaterialTheme.colors.primary
+                                )
+                                Row {
+                                    val paisLabel = if (!chapa.pais.isNullOrBlank()) chapa.pais else "N/A"
+                                    val anioLabel = if (chapa.anio != null && chapa.anio.toString().isNotBlank()) " • ${chapa.anio}" else ""
+
+                                    Text(
+                                        text = "$paisLabel$anioLabel",
+                                        style = MaterialTheme.typography.body2,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -227,4 +405,12 @@ fun obtenerBitmapConZoom(context: Context, uri: Uri, scale: Float, offset: Offse
 
     canvas.drawBitmap(original, matrix, paint)
     return resultado
+}
+
+// --> FUNCIÓN AUXILIAR PARA CREAR EL URI (Igual que en AddChapaScreen)
+private fun createImageUri(context: android.content.Context): Uri {
+    val directory = File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES), "Pictures")
+    if (!directory.exists()) directory.mkdirs()
+    val file = File.createTempFile("chapa_search_", ".jpg", directory)
+    return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }

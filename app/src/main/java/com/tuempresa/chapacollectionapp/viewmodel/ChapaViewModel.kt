@@ -25,10 +25,8 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
     val allChapas: LiveData<List<Chapa>> get() = _allChapas
     // En tu ChapaViewModel.kt
     var resultadosBusqueda by mutableStateOf<List<Chapa>>(emptyList())
-        private set
 
     var estaBuscando by mutableStateOf(false)
-        private set
 
     init {
         loadChapas()
@@ -109,7 +107,7 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
 
 
 
-    fun buscarCoincidencias(bitmapReferencia: Bitmap?, contexto: Context) {
+    fun buscarCoincidencias(bitmapReferencia: Bitmap?, contexto: Context, umbral: Float) {
         if (bitmapReferencia == null) {
             Log.e("BUSQUEDA", "El bitmap de referencia es NULO")
             return
@@ -139,7 +137,7 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
                     Log.d("BUSQUEDA", "Comparando con: ${chapa.nombre} - Similitud: $porcentaje%")
                     Pair(chapa, porcentaje)
                 }
-                    .filter { it.second > 43f } // BAJA EL UMBRAL AL 20% TEMPORALMENTE para ver si sale algo
+                    .filter { it.second >= umbral } // BAJA EL UMBRAL AL 20% TEMPORALMENTE para ver si sale algo
                     .sortedByDescending { it.second }
                     .map { it.first }
 
