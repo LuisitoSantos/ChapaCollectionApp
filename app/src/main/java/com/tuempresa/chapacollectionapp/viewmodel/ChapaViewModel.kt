@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
-import kotlin.text.toFloat
 import android.graphics.BitmapFactory
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
@@ -115,6 +114,7 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
             Log.e("BUSQUEDA", "El bitmap de referencia es NULO")
             return
         }
+        resultadosBusqueda = emptyList()
 
         viewModelScope.launch(Dispatchers.Default) {
             estaBuscando = true
@@ -139,7 +139,7 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
                     Log.d("BUSQUEDA", "Comparando con: ${chapa.nombre} - Similitud: $porcentaje%")
                     Pair(chapa, porcentaje)
                 }
-                    .filter { it.second > 20f } // BAJA EL UMBRAL AL 20% TEMPORALMENTE para ver si sale algo
+                    .filter { it.second > 43f } // BAJA EL UMBRAL AL 20% TEMPORALMENTE para ver si sale algo
                     .sortedByDescending { it.second }
                     .map { it.first }
 
@@ -155,48 +155,64 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         }
     }
 
-    // Cambia esto en tu ChapaViewModel.kt
     private fun calcularSimilitud(bitmap1: Bitmap, bitmap2: Bitmap): Float {
-        // 1. Redimensionamos ambas para normalizar
-        val b1 = Bitmap.createScaledBitmap(bitmap1, 64, 64, true)
-        val b2 = Bitmap.createScaledBitmap(bitmap2, 64, 64, true)
+        // Redimensionar un poco más grande ayuda a capturar mejores transiciones de color
+        val b1 = Bitmap.createScaledBitmap(bitmap1, 100, 100, true)
+        val b2 = Bitmap.createScaledBitmap(bitmap2, 100, 100, true)
 
         val hist1 = calcularHistograma(b1)
         val hist2 = calcularHistograma(b2)
 
         var similitud = 0f
-        // Comparamos los 32 niveles de colores de ambos histogramas
         for (i in hist1.indices) {
+            // Intersección de histogramas
             similitud += Math.min(hist1[i], hist2[i])
         }
 
-        return similitud * 100f
+        // Como comparamos dos propiedades (Hue y Saturation), el máximo teórico es 2.0
+        // Lo normalizamos a base 100
+        return (similitud / 2f) * 100f
     }
 
     private fun calcularHistograma(bitmap: Bitmap): FloatArray {
-        val histograma = FloatArray(32 * 3) // 32 niveles para R, G y B
+        // Usaremos 30 divisiones para el Matiz (Hue), que es lo más importante
+        val hBins = 30
+        val sBins = 10
+        val histograma = FloatArray(hBins + sBins)
+
         val width = bitmap.width
         val height = bitmap.height
         val totalPixeles = (width * height).toFloat()
+
+        val hsv = FloatArray(3)
 
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val pixel = bitmap.getPixel(x, y)
 
-                // Reducimos el rango de colores de 256 a 32 para agrupar tonos similares
-                val r = (android.graphics.Color.red(pixel) / 8)
-                val g = (android.graphics.Color.green(pixel) / 8)
-                val b = (android.graphics.Color.blue(pixel) / 8)
+                // Convertimos el píxel de RGB a HSV
+                android.graphics.Color.colorToHSV(pixel, hsv)
 
-                histograma[r]++
-                histograma[32 + g]++
-                histograma[64 + b]++
+                val h = hsv[0] // 0 a 360 (Color)
+                val s = hsv[1] // 0 a 1 (Saturación)
+                val v = hsv[2] // 0 a 1 (Brillo/Sombras)
+
+                // Ignoramos píxeles demasiado oscuros (sombras extremas) o muy blancos (reflejos)
+                if (v > 0.15f && v < 0.95f) {
+                    // Clasificamos el matiz (Hue)
+                    val hIndex = ((h / 360f) * (hBins - 1)).toInt()
+                    histograma[hIndex]++
+
+                    // Clasificamos la saturación
+                    val sIndex = (s * (sBins - 1)).toInt()
+                    histograma[hBins + sIndex]++
+                }
             }
         }
 
-        // Normalizamos el histograma (para que no importe si una foto es más grande que otra)
+        // Normalizamos
         for (i in histograma.indices) {
-            histograma[i] /= (totalPixeles * 3)
+            histograma[i] /= totalPixeles
         }
 
         return histograma

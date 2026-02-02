@@ -19,6 +19,7 @@ import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import coil.compose.rememberAsyncImagePainter
@@ -64,7 +66,6 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
             Text("Buscador de Chapas", style = MaterialTheme.typography.h5)
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ... (Mantén aquí el Box circular con el Image que ya tienes)
             Box(
                 modifier = Modifier
                     .size(300.dp)
@@ -128,44 +129,70 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
         }
 
         // SECCIÓN DE RESULTADOS
-        if (resultados.isNotEmpty()) {
-            item {
-                Spacer(modifier = Modifier.height(32.dp))
-                Divider()
-                Text(
-                    text = "Se han encontrado ${resultados.size} coincidencias",
-                    style = MaterialTheme.typography.h6,
-                    modifier = Modifier.padding(vertical = 16.dp)
-                )
+        // 3. LÓGICA DE MENSAJES Y RESULTADOS
+        val resultados = viewModel.resultadosBusqueda
+        val buscando = viewModel.estaBuscando
+
+        when {
+            // CASO A: Se ha buscado y NO hay resultados
+            !buscando && imageUri != null && resultados.isEmpty() -> {
+                item {
+                    Spacer(modifier = Modifier.height(40.dp))
+                    Icon(
+                        imageVector = Icons.Default.SearchOff,
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.Gray
+                    )
+                    Text(
+                        text = "No se encontraron coincidencias",
+                        style = MaterialTheme.typography.h6,
+                        color = Color.Gray
+                    )
+                    Text(
+                        text = "Prueba a centrar mejor la chapa o bajar el umbral de similitud.",
+                        style = MaterialTheme.typography.body2,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp)
+                    )
+                }
             }
 
-            items(resultados) { chapa ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .clickable {
-                            // Navegar al detalle o edición de la chapa encontrada
-                            navController.navigate("edit_chapa/${chapa.id}")
-                        },
-                    elevation = 4.dp
-                ) {
-                    Row(
-                        modifier = Modifier.padding(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            // CASO B: Hay resultados
+            resultados.isNotEmpty() -> {
+                item {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Divider()
+                    Text(
+                        text = "Coincidencias encontradas (${resultados.size})",
+                        style = MaterialTheme.typography.subtitle1,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                }
+
+                items(resultados) { chapa ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable { navController.navigate("edit/${chapa.id}") },
+                        elevation = 2.dp
                     ) {
-                        Image(
-                            painter = rememberAsyncImagePainter(chapa.imagePath),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(60.dp)
-                                .clip(CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            androidx.compose.material3.Text(text = chapa.nombre, style = MaterialTheme.typography.subtitle1)
-                            Text(text = "ID: ${chapa.id}", style = MaterialTheme.typography.caption)
+                        Row(
+                            modifier = Modifier.padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                painter = rememberAsyncImagePainter(chapa.imagePath),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(50.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Text(text = chapa.nombre, style = MaterialTheme.typography.body1)
                         }
                     }
                 }
