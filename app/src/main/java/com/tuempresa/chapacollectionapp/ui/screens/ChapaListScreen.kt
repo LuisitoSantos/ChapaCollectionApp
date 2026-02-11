@@ -24,6 +24,7 @@ import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissState
 import androidx.compose.material.DismissValue
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.rememberDismissState
 
 import androidx.compose.runtime.*
@@ -63,6 +64,7 @@ import java.io.File
 
 // Material3
 import androidx.compose.material3.*
+import androidx.compose.ui.platform.LocalContext
 
 // Fin de imports
 
@@ -158,7 +160,11 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
 
     var imagenSeleccionada by remember { mutableStateOf<String?>(null) }
 
-    var vistaCuadricula by remember { mutableStateOf(false) }
+    //var vistaCuadricula by remember { mutableStateOf(false) }
+    val vistaCuadricula = viewModel.vistaCuadricula
+
+    val context = LocalContext.current
+    viewModel.cargarPreferenciaVista(context)
 
     // Aplicar filtro si hay nombre seleccionado
     val chapasFiltradas = chapas.filter {
@@ -210,9 +216,11 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = { vistaCuadricula = !vistaCuadricula }) {
+                    IconButton(onClick = {
+                        viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
+                    }) {
                         Icon(
-                            imageVector = if (vistaCuadricula) Icons.Filled.ViewList else Icons.Filled.GridView,
+                            imageVector = if (vistaCuadricula) Icons.Default.List else Icons.Default.GridView,
                             contentDescription = "Cambiar vista"
                         )
                     }
@@ -309,15 +317,17 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
             } else {
                 var mostrarConfirmacion by remember { mutableStateOf(false) }
                 var chapaAEliminar by remember { mutableStateOf<Chapa?>(null) }
-                val dismissStates = remember { mutableStateMapOf<Int, DismissState>() }
+                //val dismissStates = remember { mutableStateMapOf<Int, DismissState>() }
                 val scope = rememberCoroutineScope()
                 val onEditar: (Chapa) -> Unit = { chapa -> chapaAEditar.value = chapa }
                 val onEliminar: (Chapa) -> Unit = { chapa -> chapaAEliminar = chapa; mostrarConfirmacion = true }
 
+                /*
                 LazyColumn {
                     items(chapasFiltradas) { chapa ->
                         val dismissState = rememberDismissState()
                         dismissStates[chapa.id] = dismissState
+
 
                         LaunchedEffect(dismissState.currentValue) {
                             when {
@@ -331,7 +341,6 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                                 }
                             }
                         }
-
                         SwipeToDismiss(
                             state = dismissState,
                             directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
@@ -375,27 +384,102 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                         )
                     }
                 }
+                */
+                LazyColumn {
+                    items(
+                        items = chapasFiltradas,
+                        key = { it.id } // Usar 'key' es crucial para animaciones correctas
+                    ) { chapa ->
+                        val dismissState = rememberDismissState(
+                            confirmStateChange = {
+                                if (it == DismissValue.DismissedToEnd) {
+                                    // Dirección para EDITAR
+                                    onEditar(chapa)
+                                    return@rememberDismissState false // No dejar que el item desaparezca
+                                } else if (it == DismissValue.DismissedToStart) {
+                                    // Dirección para ELIMINAR
+                                    onEliminar(chapa) // Abre el diálogo de confirmación
+                                    return@rememberDismissState false // No dejar que el item desaparezca
+                                }
+                                true
+                            }
+                        )
+
+                        // ESTE BLOQUE SE HA ELIMINADO: Ya no necesitas el LaunchedEffect aquí
+                        // porque la lógica está dentro de confirmStateChange.
+
+                        SwipeToDismiss(
+                            state = dismissState,
+                            modifier = Modifier.animateItem(), // Animación suave al eliminar
+                            directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
+                            background = {
+                                val direction = dismissState.dismissDirection
+                                val color = when (direction) {
+                                    DismissDirection.StartToEnd -> Color(0xFFBBDEFB) // Azul para editar
+                                    DismissDirection.EndToStart -> Color(0xFFFFCDD2) // Rojo para eliminar
+                                    else -> Color.Transparent
+                                }
+                                val icon = when (direction) {
+                                    DismissDirection.StartToEnd -> Icons.Default.Edit
+                                    DismissDirection.EndToStart -> Icons.Default.Delete
+                                    else -> null
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(color),
+                                    contentAlignment = if (direction == DismissDirection.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                ) {
+                                    icon?.let {
+                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier.padding(horizontal = 16.dp).size(24.dp))
+                                    }
+                                }
+                            },
+                            dismissContent = {
+                                ChapaCard(
+                                    chapa = chapa,
+                                    enEdicion = false,
+                                    onEditar = { onEditar(chapa) },
+                                    onEliminar = { onEliminar(chapa) },
+                                    onLongPress = {},
+                                    onTap = {},
+                                    onImageClick = { imagenSeleccionada = chapa.imagePath }
+                                )
+                            }
+                        )
+                    }
+                }
+
 
                 if (mostrarConfirmacion && chapaAEliminar != null) {
                     AlertDialog(
-                        onDismissRequest = { mostrarConfirmacion = false; chapaAEliminar = null },
+                        onDismissRequest = {
+                            // Al cancelar tocando fuera, simplemente cierra el diálogo
+                            mostrarConfirmacion = false
+                            chapaAEliminar = null
+                        },
                         title = { Text("Confirmar eliminación") },
                         text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
                         confirmButton = {
                             TextButton(onClick = {
                                 viewModel.deleteChapa(chapaAEliminar!!)
-                                val state = dismissStates[chapaAEliminar!!.id]
-                                scope.launch { state?.animateTo(DismissValue.Default) }
-                                chapasEnEdicion.value = chapasEnEdicion.value - chapaAEliminar!!.id
                                 mostrarConfirmacion = false
                                 chapaAEliminar = null
                             }) { Text("Eliminar") }
                         },
                         dismissButton = {
-                            TextButton(onClick = { mostrarConfirmacion = false; chapaAEliminar = null }) { Text("Cancelar") }
+                            TextButton(onClick = {
+                                // Al cancelar, simplemente cierra el diálogo
+                                mostrarConfirmacion = false
+                                chapaAEliminar = null
+                            }) { Text("Cancelar") }
                         }
                     )
                 }
+
             }
         }
 

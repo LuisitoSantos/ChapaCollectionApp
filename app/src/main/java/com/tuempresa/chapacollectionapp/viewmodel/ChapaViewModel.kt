@@ -19,6 +19,7 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+
 class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
 
     private val _allChapas = MutableLiveData<List<Chapa>>()
@@ -27,6 +28,12 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
     var resultadosBusqueda by mutableStateOf<List<Chapa>>(emptyList())
 
     var estaBuscando by mutableStateOf(false)
+
+    var vistaCuadricula by mutableStateOf(false)
+        private set
+
+    // Creamos una variable para saber si ya hemos cargado la preferencia
+    private var preferenciaCargada = false
 
     init {
         loadChapas()
@@ -214,5 +221,19 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         }
 
         return histograma
+    }
+
+    fun cargarPreferenciaVista(context: Context) {
+        if (!preferenciaCargada) {
+            val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+            vistaCuadricula = prefs.getBoolean("is_grid", false)
+            preferenciaCargada = true
+        }
+    }
+
+    fun setVistaCuadricula(context: Context, activa: Boolean) {
+        vistaCuadricula = activa
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_grid", activa).apply()
     }
 }

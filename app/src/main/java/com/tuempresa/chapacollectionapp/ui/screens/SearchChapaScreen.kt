@@ -155,8 +155,8 @@ fun SearchChapaScreen(viewModel: ChapaViewModel, navController: NavHostControlle
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         item {
-            //Text("Buscador de Chapas", style = MaterialTheme.typography.h5)
-            //Spacer(modifier = Modifier.height(20.dp))
+            Text("Buscador de Chapas", style = MaterialTheme.typography.h5)
+            Spacer(modifier = Modifier.height(20.dp))
             Box(
                 modifier = Modifier
                     .size(250.dp)
