@@ -77,6 +77,7 @@ dependencies {
     implementation(libs.volley)
     implementation(libs.identity.jvm)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.junit.ktx)
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
 
@@ -98,4 +99,12 @@ dependencies {
     implementation ("androidx.compose.animation:animation:1.5.0") // Usa la versión que coincida con tu Compose
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
     implementation("androidx.exifinterface:exifinterface:1.3.6")
+
+    // Testing utilities
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("androidx.arch.core:core-testing:2.2.0")
+    testImplementation("io.mockk:mockk:1.13.5")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.6.7")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.6.7")
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.2")
 }
