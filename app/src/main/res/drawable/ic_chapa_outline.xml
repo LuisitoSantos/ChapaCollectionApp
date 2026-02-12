@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Outer circle stroke -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="1.2"
+        android:pathData="M12,2 A10,10 0 1,1 11.999,2" />
+
+    <!-- One spike at top, then rotated groups will duplicate it -->
+    <!-- small rectangular spike centered on top -->
+    <group android:pivotX="12" android:pivotY="12" android:rotation="0">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="30">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="60">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="90">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="120">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="150">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="180">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="210">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="240">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="270">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="300">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+    <group android:pivotX="12" android:pivotY="12" android:rotation="330">
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M11,1 L13,1 L13,3 L11,3 Z" />
+    </group>
+
+</vector>
