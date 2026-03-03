@@ -18,9 +18,22 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.livedata.observeAsState
+import com.tuempresa.chapacollectionapp.utils.GeoRepository
 
 
 class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
+    // 1. Repositorio de la Base de Datos Room
+    //private val repository: ChapaRepository
+
+    // 2. Repositorio de Coordenadas (GeoNames)
+    private var geoRepository: GeoRepository? = null
+
+    fun inicializarGeo(context: android.content.Context) {
+        if (geoRepository == null) {
+            geoRepository = GeoRepository(context)
+        }
+    }
 
     private val _allChapas = MutableLiveData<List<Chapa>>()
     val allChapas: LiveData<List<Chapa>> get() = _allChapas
@@ -51,6 +64,7 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         context: Context,
         name: String,
         pais: String,
+        ciudad: String? = null,
         imageUri: Uri?,
         anio: Int? = null,
         colorPrimario: String = "",
@@ -63,10 +77,14 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         estadoPercent: Int? = null
     ) {
         if(imageUri != null){
+            // 1. Buscamos las coordenadas antes de insertar
+            val coords = geoRepository?.getCoordinates(pais, ciudad)
+
             val imagePath = copyImageToInternalStorage(context, imageUri)
             val chapa = Chapa(
                 nombre = name,
                 pais = pais,
+                ciudad = ciudad,
                 imagePath = imagePath,
                 anio = anio,
                 colorPrimario = colorPrimario,
@@ -76,7 +94,9 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
                 estadoRayones = estadoRayones,
                 estadoMarcas = estadoMarcas,
                 estadoOxido = estadoOxido,
-                estadoPercent = estadoPercent
+                estadoPercent = estadoPercent,
+                latitud = coords?.first ?: 0.0,
+                longitud = coords?.second ?: 0.0
             )
             viewModelScope.launch {
                 repository.insert(chapa)
@@ -94,7 +114,15 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
 
     fun updateChapa(chapa: Chapa) {
         viewModelScope.launch {
-            repository.update(chapa)
+            // Buscamos coordenadas nuevas usando el GeoRepository
+            val coords = geoRepository?.getCoordinates(chapa.pais, chapa.ciudad)
+
+            // Creamos la chapa definitiva con las coordenadas encontradas
+            val chapaFinal = chapa.copy(
+                latitud = coords?.first ?: chapa.latitud,
+                longitud = coords?.second ?: chapa.longitud
+            )
+            repository.update(chapaFinal)
             loadChapas()
         }
     }

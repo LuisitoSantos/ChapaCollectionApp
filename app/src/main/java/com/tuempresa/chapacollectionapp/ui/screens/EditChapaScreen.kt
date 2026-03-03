@@ -78,11 +78,18 @@ fun EditChapaScreen(
     val context = LocalContext.current
     var nombre by remember { mutableStateOf<TextFieldValue>(TextFieldValue(chapa.nombre ?: "")) }
     var pais by remember { mutableStateOf(TextFieldValue(chapa.pais ?: "")) }
+    var ciudad by remember { mutableStateOf(TextFieldValue(chapa.ciudad ?: "")) }
+    var expandedCiudad by remember { mutableStateOf(false) }
     // año como TextFieldValue para controlar cursor/selección y limitar a 4 dígitos
     val initialAnioText = if ((chapa.anio ?: 0) > 0) (chapa.anio ?: 0).toString() else ""
     var anio by remember { mutableStateOf<TextFieldValue>(TextFieldValue(initialAnioText)) }
     var nuevaImagenUri by remember { mutableStateOf<Uri?>(null) }
     val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
+
+    // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
+    LaunchedEffect(Unit) {
+        viewModel.inicializarGeo(context)
+    }
 
     val scale = remember { mutableStateOf(1.0f) }
     val imageOffset = remember { mutableStateOf(Offset.Zero) }
@@ -102,6 +109,8 @@ fun EditChapaScreen(
 
     val nombreFocusRequester = remember { FocusRequester() }
     val paisFocusRequester = remember { FocusRequester() }
+    val ciudadFocusRequester = remember { FocusRequester() } // <-- NUEVO
+    val anioFocusRequester = remember { FocusRequester() }   // <-- NUEVO
 
     val nombreHasFocus = remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) } // para sugerencias
@@ -290,8 +299,8 @@ fun EditChapaScreen(
                                 }
                             }
                         },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus(); keyboardController?.hide() }),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { ciudadFocusRequester.requestFocus() }, onDone = { focusManager.clearFocus(); keyboardController?.hide() }),
                     singleLine = true
                 )
 
@@ -328,6 +337,31 @@ fun EditChapaScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // --- CAMPO CIUDAD (Opcional) ---
+            Column {
+                OutlinedTextField(
+                    value = ciudad,
+                    onValueChange = { incoming ->
+                        ciudad = incoming
+                        // Lógica para futuras sugerencias si las necesitas
+                        expandedCiudad = incoming.text.isNotBlank()
+                    },
+                    label = { Text("Ciudad (Opcional)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(ciudadFocusRequester),
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { anioFocusRequester.requestFocus() }
+                    ),
+                    singleLine = true
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Campo Año: forzar LTR, limitar a 4 dígitos, permitir borrado contínuo y bloquear entrada extra
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 OutlinedTextField(
@@ -352,7 +386,9 @@ fun EditChapaScreen(
                         }
                     },
                     label = { Text("Año") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(anioFocusRequester),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
@@ -789,6 +825,7 @@ fun EditChapaScreen(
                     val actualizada = chapa.copy(
                         nombre = nombre.text,
                         pais = pais.text,
+                        ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
                         anio = anio.text.toIntOrNull() ?: 0,
                         imagePath = finalImageUri?.path ?: chapa.imagePath,
                         colorPrimario = colorPrimarioSeleccionado ?: "",
@@ -800,6 +837,7 @@ fun EditChapaScreen(
                         estadoOxido = selectedOxido,
                         estadoPercent = estadoPercentCalc
                     )
+                    viewModel.updateChapa(actualizada)
                     onSave(actualizada)
 
                     navController.navigate(Screen.Lista.route) {

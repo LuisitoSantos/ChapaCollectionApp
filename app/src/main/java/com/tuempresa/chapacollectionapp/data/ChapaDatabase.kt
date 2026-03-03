@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Chapa::class], version = 5, exportSchema = false)
+@Database(entities = [Chapa::class], version = 6, exportSchema = false)
 abstract class ChapaDatabase : RoomDatabase() {
     abstract fun chapaDao(): ChapaDao
 

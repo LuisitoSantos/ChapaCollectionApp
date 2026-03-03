@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Chapa::class], version = 2, exportSchema = false)
+@Database(entities = [Chapa::class], version = 3, exportSchema = false)
 abstract class ChapaDatabase : RoomDatabase() {
 
     abstract fun chapaDao(): ChapaDao

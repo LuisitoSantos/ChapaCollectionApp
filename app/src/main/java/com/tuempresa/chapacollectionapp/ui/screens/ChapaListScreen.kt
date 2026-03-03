@@ -1,6 +1,7 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +25,7 @@ import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissState
 import androidx.compose.material.DismissValue
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.rememberDismissState
 
@@ -145,7 +147,7 @@ fun ChapaOutline(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
     val chapas by viewModel.allChapas.observeAsState(emptyList())
@@ -220,7 +222,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                         viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
                     }) {
                         Icon(
-                            imageVector = if (vistaCuadricula) Icons.Default.List else Icons.Default.GridView,
+                            imageVector = if (vistaCuadricula) Icons.AutoMirrored.Filled.List else Icons.Default.GridView,
                             contentDescription = "Cambiar vista"
                         )
                     }
@@ -410,7 +412,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
 
                         SwipeToDismiss(
                             state = dismissState,
-                            modifier = Modifier.animateItem(), // Animación suave al eliminar
+                            modifier = Modifier.animateItemPlacement(), // Animación suave al eliminar
                             directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
                             background = {
                                 val direction = dismissState.dismissDirection

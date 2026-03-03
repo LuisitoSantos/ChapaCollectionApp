@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.Icon
+import androidx.compose.material.icons.filled.Public
+import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 
 // ... (tus imports anteriores se mantienen)
 
@@ -52,7 +54,7 @@ class MainActivity : ComponentActivity() {
                             val navBackStackEntry = navController.currentBackStackEntryAsState().value
                             val currentRoute = navBackStackEntry?.destination?.route
 
-                            listOf(Screen.Lista, Screen.Buscar, Screen.Anadir).forEach { screen ->
+                            listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Anadir).forEach { screen ->
                                 BottomNavigationItem(
                                     selected = currentRoute == screen.route,
                                     onClick = {
@@ -67,6 +69,7 @@ class MainActivity : ComponentActivity() {
                                         // Añadimos iconos para que se vea mejor
                                         val icon = when(screen) {
                                             Screen.Lista -> Icons.Default.List
+                                            Screen.Mapa -> Icons.Default.Public
                                             Screen.Buscar -> Icons.Default.Search
                                             Screen.Anadir -> Icons.Default.Add
                                             else -> Icons.Default.Search
@@ -85,6 +88,10 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(Screen.Lista.route) {
                             ChapaListScreen(viewModel, navController)
+                        }
+
+                        composable(Screen.Mapa.route) {
+                            ChapaMapScreen(viewModel)
                         }
 
                         // CAMBIO AQUÍ: Llamamos a la nueva pantalla

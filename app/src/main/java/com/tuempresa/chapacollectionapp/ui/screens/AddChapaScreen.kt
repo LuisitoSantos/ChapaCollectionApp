@@ -68,10 +68,17 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     var nombre by remember { mutableStateOf(TextFieldValue("")) }
     var pais by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
+    var expandedCiudad by remember { mutableStateOf(false) }
     var anio by remember { mutableStateOf(TextFieldValue("")) }
     val context = LocalContext.current
     val imageUriState = remember { mutableStateOf<Uri?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
+    LaunchedEffect(Unit) {
+        viewModel.inicializarGeo(context)
+    }
 
     val imageBitmapState = remember { mutableStateOf<Bitmap?>(null) }
 
@@ -182,6 +189,8 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     //para pasar al siguiente campo con boton "siguiente"
     val paisFocusRequester = remember { FocusRequester() }
+    val ciudadFocusRequester = remember { FocusRequester() }
+    val anioFocusRequester = remember { FocusRequester() } // Necesitarás este para saltar desde ciudad
 
     Box(
         modifier = Modifier
@@ -307,6 +316,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                 expandedCountry = current.isNotBlank() && countryList.any { it.contains(current, ignoreCase = true) }
                             }
                         },
+                    keyboardActions = KeyboardActions(onNext = { ciudadFocusRequester.requestFocus() }),
                     singleLine = true
                 )
 
@@ -341,6 +351,45 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 }
             }
 
+            // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
+            Column {
+                OutlinedTextField(
+                    value = ciudad,
+                    onValueChange = { new ->
+                        ciudad = new
+                        // Aquí podrías activar sugerencias de ciudades más adelante
+                        expandedCiudad = new.text.isNotBlank()
+                    },
+                    label = { Text("Ciudad (Opcional)") },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(ciudadFocusRequester)
+                        .onFocusChanged { fs ->
+                            if (!fs.isFocused) expandedCiudad = false
+                        },
+                    keyboardOptions = KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Words,
+                        imeAction = ImeAction.Next
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { anioFocusRequester.requestFocus() }
+                    ),
+                    singleLine = true
+                )
+
+                // Espacio para sugerencias de ciudades (si decides implementarlas luego)
+                if (expandedCiudad && false) { // Cambiar false por tu lógica de sugerencias
+                    Surface(
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    ) {
+                        // Contenido de sugerencias de ciudad similar a los anteriores
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Campo Año: forzar LTR, limitar a 4 dígitos, permitir borrado contínuo y bloquear entrada extra
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 OutlinedTextField(
@@ -371,7 +420,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         }
                     },
                     label = { Text("Año") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().focusRequester(anioFocusRequester),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
@@ -863,6 +912,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                 recortarImagenVisibleDesdeUri(context, uri, scale.value, imageOffset.value, frameSizePx, maskRadiusPxDefault)
                             }
                         }
+                        val ciudadText = if (ciudad.text.isBlank()) null else ciudad.text
                         val anioInt = anio.text.toIntOrNull()
                         // Determinar colores seleccionados
                         val cp = colorPrimarioSeleccionado ?: ""
@@ -886,6 +936,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             context,
                             nombre.text,
                             pais.text,
+                            ciudadText,
                             finalUri,
                             anioInt,
                             cp,
