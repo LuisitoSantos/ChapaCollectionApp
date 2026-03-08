@@ -46,16 +46,20 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.navigation.NavHostController
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
+import com.tuempresa.chapacollectionapp.utils.GeoRepository
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeBitmap
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeUri
 import com.tuempresa.chapacollectionapp.utils.rotateBitmapIfRequired
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -68,16 +72,34 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     var nombre by remember { mutableStateOf(TextFieldValue("")) }
     var pais by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
+    //var ciudad by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudad by remember { mutableStateOf("") }
     var expandedCiudad by remember { mutableStateOf(false) }
     var anio by remember { mutableStateOf(TextFieldValue("")) }
     val context = LocalContext.current
     val imageUriState = remember { mutableStateOf<Uri?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
+    val scope = rememberCoroutineScope()
+    val geoRepository = remember { GeoRepository(context) }
+    var sugerencias by remember { mutableStateOf<List<String>>(emptyList()) }
+
+
     // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
     LaunchedEffect(Unit) {
         viewModel.inicializarGeo(context)
+    }
+
+    // Cada vez que cambie el texto de 'ciudad' o el 'pais', buscamos sugerencias
+    LaunchedEffect(ciudad, pais.text) { // Usamos pais.text aquí
+        if (ciudad.length >= 2) {
+            val results = withContext(Dispatchers.IO) {
+                geoRepository.getCitySuggestions(ciudad, pais.text)
+            }
+            sugerencias = results
+        } else {
+            sugerencias = emptyList()
+        }
     }
 
     val imageBitmapState = remember { mutableStateOf<Bitmap?>(null) }
@@ -247,7 +269,12 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                 if (!focusState.isFocused) expanded = false
                                 else {
                                     val current = nombre.text
-                                    expanded = current.isNotBlank() && nombresExistentes.any { it.contains(current, ignoreCase = true) && it != current }
+                                    expanded = current.isNotBlank() && nombresExistentes.any {
+                                        it.contains(
+                                            current,
+                                            ignoreCase = true
+                                        ) && it != current
+                                    }
                                 }
                             },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
@@ -272,7 +299,10 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                nombre = TextFieldValue(sugerencia, TextRange(sugerencia.length))
+                                                nombre = TextFieldValue(
+                                                    sugerencia,
+                                                    TextRange(sugerencia.length)
+                                                )
                                                 expanded = false
                                             }
                                             .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -313,7 +343,12 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             if (!fs.isFocused) expandedCountry = false
                             else {
                                 val current = pais.text
-                                expandedCountry = current.isNotBlank() && countryList.any { it.contains(current, ignoreCase = true) }
+                                expandedCountry = current.isNotBlank() && countryList.any {
+                                    it.contains(
+                                        current,
+                                        ignoreCase = true
+                                    )
+                                }
                             }
                         },
                     keyboardActions = KeyboardActions(onNext = { ciudadFocusRequester.requestFocus() }),
@@ -353,6 +388,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
             // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
             Column {
+                /*
                 OutlinedTextField(
                     value = ciudad,
                     onValueChange = { new ->
@@ -375,6 +411,14 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         onNext = { anioFocusRequester.requestFocus() }
                     ),
                     singleLine = true
+                )*/
+                CityAutoCompleteField(
+                    label = "Ciudad",
+                    value = ciudad,
+                    onValueChange = { ciudad = it },
+                    suggestions = sugerencias,
+                    focusRequester = ciudadFocusRequester,
+                    onNext = { anioFocusRequester.requestFocus() } // Salta al año al terminar
                 )
 
                 // Espacio para sugerencias de ciudades (si decides implementarlas luego)
@@ -382,7 +426,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                     Surface(
                         tonalElevation = 2.dp,
                         shadowElevation = 4.dp,
-                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
                     ) {
                         // Contenido de sugerencias de ciudad similar a los anteriores
                     }
@@ -420,7 +466,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         }
                     },
                     label = { Text("Año") },
-                    modifier = Modifier.fillMaxWidth().focusRequester(anioFocusRequester),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(anioFocusRequester),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
@@ -505,7 +553,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         placeholder = { Text("Seleccionar color") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSec1) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedSec1,
@@ -541,7 +591,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         placeholder = { Text("Ninguno seleccionado") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSec2) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedSec2,
@@ -652,7 +704,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRayones) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedRayones,
@@ -684,7 +738,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMarcas) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedMarcas,
@@ -716,7 +772,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedOxido) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedOxido,
@@ -784,8 +842,10 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             detectTransformGestures { _, pan, zoom, _ ->
                                 scale.value = (scale.value * zoom).coerceIn(1f, 3f)
 
-                                val maxX = ((displayedWidth * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
-                                val maxY = ((displayedHeight * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+                                val maxX =
+                                    ((displayedWidth * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+                                val maxY =
+                                    ((displayedHeight * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
 
                                 val newOffset = imageOffset.value + pan
                                 imageOffset.value = Offset(
@@ -912,7 +972,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                 recortarImagenVisibleDesdeUri(context, uri, scale.value, imageOffset.value, frameSizePx, maskRadiusPxDefault)
                             }
                         }
-                        val ciudadText = if (ciudad.text.isBlank()) null else ciudad.text
+                        val ciudadText = if (ciudad.isBlank()) null else ciudad
                         val anioInt = anio.text.toIntOrNull()
                         // Determinar colores seleccionados
                         val cp = colorPrimarioSeleccionado ?: ""
@@ -964,6 +1024,55 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                     Text("Añadir Chapa")
                 }
 
+            }
+        }
+    }
+}
+
+@Composable
+fun CityAutoCompleteField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    suggestions: List<String>,
+    focusRequester: FocusRequester,
+    onNext: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {
+                onValueChange(it)
+                expanded = it.length >= 2 && suggestions.isNotEmpty()
+            },
+            label = { Text(label) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Words,
+                imeAction = ImeAction.Next
+            ),
+            keyboardActions = KeyboardActions(onNext = { onNext() })
+        )
+
+        DropdownMenu(
+            expanded = expanded && suggestions.isNotEmpty(),
+            onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
+            modifier = Modifier.fillMaxWidth(0.8f)
+        ) {
+            suggestions.forEach { suggestion ->
+                DropdownMenuItem(
+                    text = { Text(suggestion) },
+                    onClick = {
+                        onValueChange(suggestion)
+                        expanded = false
+                    }
+                )
             }
         }
     }

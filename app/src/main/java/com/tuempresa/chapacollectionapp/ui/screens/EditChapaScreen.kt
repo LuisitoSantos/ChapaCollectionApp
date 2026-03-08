@@ -55,10 +55,13 @@ import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
 import com.tuempresa.chapacollectionapp.data.Chapa
+import com.tuempresa.chapacollectionapp.utils.GeoRepository
 import com.tuempresa.chapacollectionapp.utils.cropCenterSquare
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeUri
 import com.tuempresa.chapacollectionapp.utils.rotateBitmapIfRequired
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
@@ -86,9 +89,25 @@ fun EditChapaScreen(
     var nuevaImagenUri by remember { mutableStateOf<Uri?>(null) }
     val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
 
+    val geoRepository = remember { GeoRepository(context) }
+    var sugerenciasCiudades by remember { mutableStateOf<List<String>>(emptyList()) }
+
+
     // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
     LaunchedEffect(Unit) {
         viewModel.inicializarGeo(context)
+    }
+
+    // Buscador de sugerencias para la edición
+    LaunchedEffect(ciudad.text, pais.text) {
+        if (ciudad.text.length >= 2) {
+            val results = withContext(Dispatchers.IO) {
+                geoRepository.getCitySuggestions(ciudad.text, pais.text)
+            }
+            sugerenciasCiudades = results
+        } else {
+            sugerenciasCiudades = emptyList()
+        }
     }
 
     val scale = remember { mutableStateOf(1.0f) }
@@ -339,6 +358,7 @@ fun EditChapaScreen(
 
             // --- CAMPO CIUDAD (Opcional) ---
             Column {
+                /*
                 OutlinedTextField(
                     value = ciudad,
                     onValueChange = { incoming ->
@@ -358,6 +378,17 @@ fun EditChapaScreen(
                         onNext = { anioFocusRequester.requestFocus() }
                     ),
                     singleLine = true
+                )
+                */
+                CityAutoCompleteField(
+                    label = "Ciudad",
+                    value = ciudad.text, // Pasamos solo el string para la lógica del componente
+                    onValueChange = { nuevaCiudad ->
+                        ciudad = TextFieldValue(nuevaCiudad, TextRange(nuevaCiudad.length))
+                    },
+                    suggestions = sugerenciasCiudades,
+                    focusRequester = ciudadFocusRequester,
+                    onNext = { anioFocusRequester.requestFocus() }
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -876,3 +907,5 @@ fun EditChapaScreen(
         }
     }
 }
+
+
