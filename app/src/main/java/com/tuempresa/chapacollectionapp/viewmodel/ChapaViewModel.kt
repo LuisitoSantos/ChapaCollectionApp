@@ -127,6 +127,10 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         }
     }
 
+    fun getChapaById(id: Int): LiveData<Chapa?> {
+        return repository.getChapaById(id).asLiveData()
+    }
+
     companion object {
         fun copyImageToInternalStorage(context: Context, uri: Uri): String {
             val inputStream = context.contentResolver.openInputStream(uri)

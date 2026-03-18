@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
@@ -187,6 +188,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     chapaAEditar.value?.let { chapa ->
         EditChapaScreen(
             chapa = chapa,
+            chapaId = chapa.id,
             onSave = {
                 viewModel.updateChapa(it)
                 chapaAEditar.value = null
@@ -289,17 +291,22 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     items(items = chapasFiltradas, key = { it.id }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface)
+                            //.clip(RoundedCornerShape(8.dp))
+                            //.border(2.dp, Color.Black, RoundedCornerShape(8.dp))
+                            //.background(MaterialTheme.colorScheme.surface)
                             .clickable { imagenSeleccionada = chapa.imagePath }
                         ) {
                             Image(
                                 painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
                                 contentDescription = "Imagen de la chapa",
-                                contentScale = ContentScale.Crop,
+                                // 1. Usamos Fit para ver el borde original de la imagen sin estirarlo
+                                contentScale = ContentScale.Fit,
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    //.padding(4.dp) // Un poco de espacio para que la chapa respire en el cuadro
+                                    .clip(CircleShape)
+                                // 2. ELIMINAMOS .background(Color.Black)
+                                // 3. ELIMINAMOS .border(...)
                             )
 
                             // Badge porcentaje: 'ND' si null, o 'xx%'

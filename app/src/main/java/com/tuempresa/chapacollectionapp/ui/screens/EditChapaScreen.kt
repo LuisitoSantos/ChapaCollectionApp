@@ -65,11 +65,16 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.tuempresa.chapacollectionapp.utils.createImageUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditChapaScreen(
     chapa: Chapa,
+    chapaId: Int,
     onSave: (Chapa) -> Unit,
     onCancel: () -> Unit,
     navController: NavHostController,
@@ -77,20 +82,92 @@ fun EditChapaScreen(
 ) {
     val chapas by viewModel.allChapas.observeAsState(emptyList())
     val nombresExistentes = chapas.map { it.nombre }.distinct()
-
     val context = LocalContext.current
-    var nombre by remember { mutableStateOf<TextFieldValue>(TextFieldValue(chapa.nombre ?: "")) }
-    var pais by remember { mutableStateOf(TextFieldValue(chapa.pais ?: "")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue(chapa.ciudad ?: "")) }
+
+    // 1. Observamos la chapa como un estado de Compose
+    val chapaState by viewModel.getChapaById(chapaId).observeAsState()
+
+    // 2. Declaramos las variables de los campos (como las tienes ahora)
+    var nombre by remember { mutableStateOf(TextFieldValue("")) }
+    var pais by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
+    var anio by remember { mutableStateOf(TextFieldValue("")) }
+
+    // Variables de estado (Dropdowns)
+    var selectedForma by remember { mutableStateOf("") }
+    var selectedRayones by remember { mutableStateOf("") }
+    var selectedMarcas by remember { mutableStateOf("") }
+    var selectedOxido by remember { mutableStateOf("") }
+
+    // Colores (si los tienes)
+    var colorPrimarioSeleccionado by remember { mutableStateOf("") }
+    var colorSec1 by remember { mutableStateOf("") }
+    var colorSec2 by remember { mutableStateOf("") }
+    var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
+    var scale = remember { mutableStateOf(1.0f) }
+    var imageOffset = remember { mutableStateOf(Offset.Zero) }
+
+    //var nombre by remember { mutableStateOf<TextFieldValue>(TextFieldValue(chapa.nombre ?: "")) }
+    //var pais by remember(chapa) { mutableStateOf(TextFieldValue(chapa.pais ?: "")) }
+    //var ciudad by remember { mutableStateOf(TextFieldValue(chapa.ciudad ?: "")) }
     var expandedCiudad by remember { mutableStateOf(false) }
     // año como TextFieldValue para controlar cursor/selección y limitar a 4 dígitos
     val initialAnioText = if ((chapa.anio ?: 0) > 0) (chapa.anio ?: 0).toString() else ""
-    var anio by remember { mutableStateOf<TextFieldValue>(TextFieldValue(initialAnioText)) }
+    //var anio by remember { mutableStateOf<TextFieldValue>(TextFieldValue(initialAnioText)) }
     var nuevaImagenUri by remember { mutableStateOf<Uri?>(null) }
     val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
 
     val geoRepository = remember { GeoRepository(context) }
     var sugerenciasCiudades by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // 3. EL TRUCO: Cuando 'chapaState' cambie (porque Room detectó el guardado),
+    // forzamos la actualización de los campos de texto.
+    // 3. EL TRUCO: Cuando 'chapaState' cambie, forzamos la actualización de TODO
+    LaunchedEffect(chapaState) {
+        chapaState?.let { chapa ->
+            // Sincronización de campos de texto (Nombre, País, Ciudad)
+            if (nombre.text != (chapa.nombre ?: "")) {
+                nombre = TextFieldValue(chapa.nombre ?: "", TextRange(chapa.nombre?.length ?: 0))
+            }
+            if (pais.text != (chapa.pais ?: "")) {
+                pais = TextFieldValue(chapa.pais ?: "", TextRange(chapa.pais?.length ?: 0))
+            }
+            if (ciudad.text != (chapa.ciudad ?: "")) {
+                ciudad = TextFieldValue(chapa.ciudad ?: "", TextRange(chapa.ciudad?.length ?: 0))
+            }
+
+            // Sincronización del Año
+            val anioBD = if ((chapa.anio ?: 0) > 0) chapa.anio.toString() else ""
+            if (anio.text != anioBD) {
+                anio = TextFieldValue(anioBD, TextRange(anioBD.length))
+            }
+
+            // Sincronización de Selectores (Dropdowns)
+            selectedForma = chapa.estadoForma ?: ""
+            selectedRayones = chapa.estadoRayones ?: ""
+            selectedMarcas = chapa.estadoMarcas ?: ""
+            selectedOxido = chapa.estadoOxido ?: ""
+
+            // Sincronización de Colores
+            colorPrimarioSeleccionado = chapa.colorPrimario ?: ""
+            colorSec1 = chapa.colorSecundario1 ?: ""
+            colorSec2 = chapa.colorSecundario2 ?: ""
+            tieneSecundarios = !chapa.colorSecundario1.isNullOrBlank()
+
+            // Reset de imagen temporal al cambiar de chapa
+            nuevaImagenUri = null
+            scale.value = 1.0f
+            imageOffset.value = Offset.Zero
+        }
+    }
+
+    // 4. No mostrar la UI hasta que la chapa cargue por primera vez
+    if (chapaState == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else {
+
 
 
     // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
@@ -110,8 +187,7 @@ fun EditChapaScreen(
         }
     }
 
-    val scale = remember { mutableStateOf(1.0f) }
-    val imageOffset = remember { mutableStateOf(Offset.Zero) }
+
 
     //Este bloque asegura que al salir de la pantalla, el foco se limpie
     val focusManager = LocalFocusManager.current
@@ -165,6 +241,19 @@ fun EditChapaScreen(
                 }
             }
         }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Si se concede el permiso ahora, lanzamos la cámara
+            val uri = createImageUri(context)
+            cameraImageUri.value = uri
+            cameraLauncher.launch(uri)
+        } else {
+            Toast.makeText(context, "Permiso de cámara denegado", Toast.LENGTH_SHORT).show()
+        }
+    }
 
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -430,14 +519,14 @@ fun EditChapaScreen(
             val coloresDisponibles = listOf("Rojo", "Azul", "Verde", "Amarillo", "Negro", "Blanco", "Plata", "Dorado", "Bronce", "Naranja")
 
             // Color Principal: Inicializamos con lo que ya tiene la chapa
-            var colorPrimarioSeleccionado by remember { mutableStateOf(chapa.colorPrimario ?: "") }
+            //var colorPrimarioSeleccionado by remember { mutableStateOf(chapa.colorPrimario ?: "") }
             var expandedColorPrimario by remember { mutableStateOf(false) }
 
             // Colores Secundarios: El switch se activa si ya existe algún color secundario
-            var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
-            var colorSec1 by remember { mutableStateOf(chapa.colorSecundario1 ?: "") }
+            //var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
+            //var colorSec1 by remember { mutableStateOf(chapa.colorSecundario1 ?: "") }
             var expandedSec1 by remember { mutableStateOf(false) }
-            var colorSec2 by remember { mutableStateOf(chapa.colorSecundario2 ?: "") }
+            //var colorSec2 by remember { mutableStateOf(chapa.colorSecundario2 ?: "") }
             var expandedSec2 by remember { mutableStateOf(false) }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -575,13 +664,13 @@ fun EditChapaScreen(
             val opcionesOxido = listOf("nada", "poco", "moderado", "demasiado")
 
             // Aseguramos que si vienen nulos de la base de datos, el TextField no falle
-            var selectedForma by remember { mutableStateOf(chapa.estadoForma ?: "") }
+            //var selectedForma by remember { mutableStateOf(chapa.estadoForma ?: "") }
             var expandedForma by remember { mutableStateOf(false) }
-            var selectedRayones by remember { mutableStateOf(chapa.estadoRayones ?: "") }
+            //var selectedRayones by remember { mutableStateOf(chapa.estadoRayones ?: "") }
             var expandedRayones by remember { mutableStateOf(false) }
-            var selectedMarcas by remember { mutableStateOf(chapa.estadoMarcas ?: "") }
+            //var selectedMarcas by remember { mutableStateOf(chapa.estadoMarcas ?: "") }
             var expandedMarcas by remember { mutableStateOf(false) }
-            var selectedOxido by remember { mutableStateOf(chapa.estadoOxido ?: "") }
+            //var selectedOxido by remember { mutableStateOf(chapa.estadoOxido ?: "") }
             var expandedOxido by remember { mutableStateOf(false) }
 
             fun mapValor(opcion: String?, tipo: String): Int {
@@ -735,9 +824,21 @@ fun EditChapaScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(onClick = {
-                    val uri = createImageUri(context)
-                    cameraImageUri.value = uri
-                    cameraLauncher.launch(uri)
+
+                    val permissionCheckResult = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    )
+
+                    if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                        // Si ya tenemos permiso, abrimos directamente
+                        val uri = createImageUri(context)
+                        cameraImageUri.value = uri
+                        cameraLauncher.launch(uri)
+                    } else {
+                        // Si no, pedimos el permiso
+                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
                 }) {
                     Text("Cámara")
                 }
@@ -745,8 +846,11 @@ fun EditChapaScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Usa chapaState (la verdad de la base de datos) en lugar de chapa (el valor estático)
             val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
-                ?: chapa.imagePath?.let { rememberAsyncImagePainter(File(it)) }
+                ?: chapaState?.imagePath?.let { path ->
+                    rememberAsyncImagePainter(File(path))
+                }
                 ?: rememberAsyncImagePainter(null)
 
             // Tamaño del marco cuadrado visible
@@ -810,10 +914,14 @@ fun EditChapaScreen(
                     keyboardController?.hide()
                     focusManager.clearFocus(force = true) // <-- Esto limpia el foco y oculta sugerencias
 
+                    onCancel()
+
+                    /*
                     navController.navigate(Screen.Lista.route) {
                         popUpTo(Screen.Lista.route) { inclusive = false }
                         launchSingleTop = true
-                    }
+                    }*/
+                    navController.popBackStack(Screen.Lista.route, inclusive = false)
                 }) {
                     Text("Cancelar")
                 }
@@ -871,10 +979,12 @@ fun EditChapaScreen(
                     viewModel.updateChapa(actualizada)
                     onSave(actualizada)
 
+                    /*
                     navController.navigate(Screen.Lista.route) {
                         popUpTo(Screen.Lista.route) { inclusive = false }
                         launchSingleTop = true
-                    }
+                    }*/
+                    navController.popBackStack(Screen.Lista.route, inclusive = false)
                 }) {
                     Text("Guardar")
                 }
@@ -905,6 +1015,7 @@ fun EditChapaScreen(
                 }*/
             }
         }
+    }
     }
 }
 

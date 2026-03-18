@@ -3,6 +3,8 @@ package com.tuempresa.chapacollectionapp.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -34,7 +36,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
@@ -49,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
+import androidx.core.text.color
 import androidx.navigation.NavHostController
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
@@ -63,6 +68,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1076,4 +1082,48 @@ fun CityAutoCompleteField(
             }
         }
     }
+}
+
+fun procesarImagenParaChapa(bitmap: Bitmap): Bitmap {
+    val size = Math.min(bitmap.width, bitmap.height)
+    // Usamos Bitmap.Config.ARGB_8888 para permitir la transparencia de las esquinas
+    val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+
+    // IMPORTANTE: Usar el Canvas de android.graphics, no el de Compose
+    val canvas = android.graphics.Canvas(output)
+
+    val paint = android.graphics.Paint().apply {
+        isAntiAlias = true
+    }
+
+    val radius = size / 2f
+
+    // 1. Dibujamos un círculo lleno (nuestra máscara)
+    canvas.drawCircle(radius, radius, radius, paint)
+
+    // 2. Aplicamos el modo de recorte SRC_IN
+    // Esto hace que lo siguiente que dibujemos solo se vea donde ya hay color (el círculo)
+    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+
+    // Calculamos el rectángulo de origen para centrar la imagen si no es cuadrada
+    val srcRect = android.graphics.Rect(
+        (bitmap.width - size) / 2,
+        (bitmap.height - size) / 2,
+        (bitmap.width + size) / 2,
+        (bitmap.height + size) / 2
+    )
+    val destRect = android.graphics.Rect(0, 0, size, size)
+
+    canvas.drawBitmap(bitmap, srcRect, destRect, paint)
+
+    // 3. Dibujamos el borde negro (sin xfermode para que se pinte encima)
+    paint.xfermode = null
+    paint.style = android.graphics.Paint.Style.STROKE
+    paint.color = android.graphics.Color.BLACK
+    paint.strokeWidth = size * 0.04f // Borde del 4% del tamaño
+
+    // Dibujamos el borde ligeramente hacia adentro para que no se corte
+    canvas.drawCircle(radius, radius, radius - (paint.strokeWidth / 2), paint)
+
+    return output
 }

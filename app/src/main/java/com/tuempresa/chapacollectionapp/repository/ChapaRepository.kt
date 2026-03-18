@@ -26,4 +26,8 @@ class ChapaRepository(private val chapaDao: ChapaDao) {
     suspend fun update(chapa: Chapa) {
         chapaDao.update(chapa)
     }
+
+    fun getChapaById(id: Int): Flow<Chapa?> {
+        return chapaDao.getChapaById(id)
+    }
 }

@@ -22,4 +22,7 @@ interface ChapaDao {
 
     @Update
     suspend fun update(chapa: Chapa)
+
+    @Query("SELECT * FROM chapa_table WHERE id = :id")
+    fun getChapaById(id: Int): Flow<Chapa?> // <--- AÑADE ESTA LÍNEA
 }
