@@ -25,4 +25,13 @@ interface ChapaDao {
 
     @Query("SELECT * FROM chapa_table WHERE id = :id")
     fun getChapaById(id: Int): Flow<Chapa?> // <--- AÑADE ESTA LÍNEA
+
+    @Query("SELECT DISTINCT pais FROM chapa_table WHERE pais IS NOT NULL AND pais != '' ORDER BY pais ASC")
+    fun getUniquePaises(): Flow<List<String>>
+
+    @Query("SELECT DISTINCT ciudad FROM chapa_table WHERE ciudad IS NOT NULL AND ciudad != '' ORDER BY ciudad ASC")
+    fun getUniqueCiudades(): Flow<List<String>>
+
+    @Query("SELECT DISTINCT donante FROM chapa_table WHERE donante IS NOT NULL AND donante != '' ORDER BY donante ASC")
+    fun getUniqueDonantes(): Flow<List<String>>
 }

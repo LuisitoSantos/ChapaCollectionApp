@@ -20,5 +20,10 @@ data class Chapa(
     val estadoOxido: String? = null,
     val estadoPercent: Int? = null,
     val latitud: Double? = null,
-    val longitud: Double? = null
+    val longitud: Double? = null,
+    val procedencia: String? = null ,
+    val metodoObtencion: String? = null,
+    val donante: String? = null,
+    val paisObtencion: String? = null,
+    val ciudadObtencion: String? = null
 )

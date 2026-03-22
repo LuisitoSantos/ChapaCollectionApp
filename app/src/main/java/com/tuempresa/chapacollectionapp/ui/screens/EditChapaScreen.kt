@@ -120,6 +120,19 @@ fun EditChapaScreen(
     val geoRepository = remember { GeoRepository(context) }
     var sugerenciasCiudades by remember { mutableStateOf<List<String>>(emptyList()) }
 
+    // Nuevos estados para la procedencia
+    var procedencia by remember { mutableStateOf("") }
+    var metodoObtencion by remember { mutableStateOf("") }
+    var donante by remember { mutableStateOf(TextFieldValue("")) }
+    val opcionesProcedencia = listOf("Mi", "Regalada")
+    val opcionesMetodoMi = listOf("Bebida", "Encontrada", "Comprada", "Desconocido")
+    var sugerenciasObtencion by remember { mutableStateOf<List<String>>(emptyList()) }
+    val listaDonantes by viewModel.sugerenciasDonantes.observeAsState(emptyList())
+
+    // Variables específicas para la obtención propia (para no interferir con las generales)
+    var paisObtencion by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudadObtencion by remember { mutableStateOf("") } // String, según tu CityAutoCompleteField
+
     // 3. EL TRUCO: Cuando 'chapaState' cambie (porque Room detectó el guardado),
     // forzamos la actualización de los campos de texto.
     // 3. EL TRUCO: Cuando 'chapaState' cambie, forzamos la actualización de TODO
@@ -158,6 +171,18 @@ fun EditChapaScreen(
             nuevaImagenUri = null
             scale.value = 1.0f
             imageOffset.value = Offset.Zero
+
+            // Sincronización de Procedencia
+            procedencia = chapa.procedencia ?: ""
+            metodoObtencion = chapa.metodoObtencion ?: ""
+            donante = TextFieldValue(chapa.donante ?: "")
+            // Si la chapa tiene procedencia, cargamos sus valores en los campos de "obtención"
+            if (procedencia.isNotEmpty()) {
+                // Leemos de chapa.pais y chapa.ciudad porque ahí es donde se guardaron
+                paisObtencion = TextFieldValue(chapa.paisObtencion ?: "")
+                ciudadObtencion = chapa.ciudadObtencion ?: ""
+            }
+
         }
     }
 
@@ -187,6 +212,18 @@ fun EditChapaScreen(
         }
     }
 
+    LaunchedEffect(ciudadObtencion, paisObtencion.text) {
+        if (ciudadObtencion.length >= 2) {
+            val results = withContext(Dispatchers.IO) {
+                // USAMOS paisObtencion.text para filtrar las ciudades de ese país concreto
+                geoRepository.getCitySuggestions(ciudadObtencion, paisObtencion.text)
+            }
+            sugerenciasObtencion = results
+        } else {
+            sugerenciasObtencion = emptyList()
+        }
+    }
+
 
 
     //Este bloque asegura que al salir de la pantalla, el foco se limpie
@@ -204,8 +241,12 @@ fun EditChapaScreen(
 
     val nombreFocusRequester = remember { FocusRequester() }
     val paisFocusRequester = remember { FocusRequester() }
-    val ciudadFocusRequester = remember { FocusRequester() } // <-- NUEVO
-    val anioFocusRequester = remember { FocusRequester() }   // <-- NUEVO
+    val ciudadFocusRequester = remember { FocusRequester() }
+    val anioFocusRequester = remember { FocusRequester() }
+    val paisFocusRequesterObtencion = remember { FocusRequester() }
+    val ciudadFocusRequesterObtencion = remember { FocusRequester() }
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current // Añade esto arriba
+
 
     val nombreHasFocus = remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) } // para sugerencias
@@ -300,6 +341,94 @@ fun EditChapaScreen(
         ) {
             Text("Editar Chapa", style = MaterialTheme.typography.titleLarge)
             Spacer(modifier = Modifier.height(8.dp))
+
+            Row {
+                Button(onClick = { galleryLauncher.launch("image/*") }) {
+                    Text("Galería")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = {
+
+                    val permissionCheckResult = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA
+                    )
+
+                    if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                        // Si ya tenemos permiso, abrimos directamente
+                        val uri = createImageUri(context)
+                        cameraImageUri.value = uri
+                        cameraLauncher.launch(uri)
+                    } else {
+                        // Si no, pedimos el permiso
+                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                    }
+                }) {
+                    Text("Cámara")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Usa chapaState (la verdad de la base de datos) en lugar de chapa (el valor estático)
+            val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
+                ?: chapaState?.imagePath?.let { path ->
+                    rememberAsyncImagePainter(File(path))
+                }
+                ?: rememberAsyncImagePainter(null)
+
+            // Tamaño del marco cuadrado visible
+            val frameSizeDp = 300.dp
+            val density = LocalDensity.current
+            val frameSizePx = with(density) { frameSizeDp.toPx() }
+
+            // Estado del zoom y desplazamiento (ya estan decalaradas arriba)
+            //val scale = remember { mutableStateOf(1f) }
+            //val imageOffset = remember { mutableStateOf(Offset.Zero) }
+
+            // Tamaño aproximado de imagen mostrada para limitar desplazamiento
+            val imageWidth = 512f  // o el tamaño real si lo conoces
+            val imageHeight = 512f
+
+            Box(
+                modifier = Modifier
+                    .size(frameSizeDp)
+                    .clip(RectangleShape)
+                    .background(Color.LightGray) // Útil para ver el fondo si la imagen no es cuadrada
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale.value = (scale.value * zoom).coerceIn(1f, 3f)
+
+                            // Cálculo dinámico para evitar que la imagen se salga del marco al moverla
+                            val maxX =
+                                ((frameSizePx * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+                            val maxY =
+                                ((frameSizePx * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+
+                            val newOffset = imageOffset.value + pan
+                            imageOffset.value = Offset(
+                                x = newOffset.x.coerceIn(-maxX, maxX),
+                                y = newOffset.y.coerceIn(-maxY, maxY)
+                            )
+                        }
+                    }
+            ) {
+                Image(
+                    painter = painter,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop, // IMPORTANTE: Crop asegura que la imagen llene el cuadrado inicial
+                    modifier = Modifier
+                        .fillMaxSize() // Ocupa todo el Box de 300.dp
+                        .graphicsLayer(
+                            scaleX = scale.value,
+                            scaleY = scale.value,
+                            translationX = imageOffset.value.x,
+                            translationY = imageOffset.value.y
+                        )
+                )
+
+                OverlayCuadradoConGuiaCircular(modifier = Modifier.matchParentSize())
+            }
 
             //Campo Nombre con sugerencias de valores ya introducidos anteriormente
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -818,93 +947,146 @@ fun EditChapaScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Row {
-                Button(onClick = { galleryLauncher.launch("image/*") }) {
-                    Text("Galería")
+            // --- SECCIÓN PROCEDENCIA ---
+            Text("¿Cómo llegó esta chapa?", style = MaterialTheme.typography.labelLarge)
+            OpcionesSelector(
+                label = "Origen",
+                options = opcionesProcedencia,
+                selectedOption = procedencia,
+                onOptionSelected = {
+                    procedencia = it
+                    if (it != "Mi") metodoObtencion = ""
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
+            )
 
-                    val permissionCheckResult = ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.CAMERA
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when (procedencia) {
+                "Mi" -> {
+                    OpcionesSelector(
+                        label = "¿Cómo se obtuvo?",
+                        options = opcionesMetodoMi,
+                        selectedOption = metodoObtencion,
+                        onOptionSelected = { metodoObtencion = it }
+                    )
+                }
+
+                "Regalada" -> {
+                    AutoCompleteTextField(
+                        label = "Nombre de quien la regaló",
+                        value = donante,
+                        suggestions = listaDonantes,
+                        onValueChange = { donante = it }
+                    )
+                }
+            }
+
+            // Solo mostramos estos campos si es uno de estos tres métodos
+            if ((metodoObtencion in listOf("Bebida", "Encontrada", "Comprada") && procedencia == "Mi") || (procedencia == "Regalada")) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text("Detalles de obtención propia", style = MaterialTheme.typography.labelMedium)
+
+                // Campo País: desplegable con búsqueda de países (Locale)
+                val countryListObtencion = remember {
+                    Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted()
+                }
+                var expandedCountryObtencion by remember { mutableStateOf(false) }
+                val countrySuggestionsObtencion = remember(paisObtencion.text) { countryListObtencion.filter { it.contains(paisObtencion.text, ignoreCase = true) } }
+
+                // Usamos OutlinedTextField y renderizamos sugerencias en Surface debajo (no roban foco)
+                Column {
+                    OutlinedTextField(
+                        value = paisObtencion.text,
+                        onValueChange = { new ->
+                            paisObtencion = TextFieldValue(new)
+                            // mostrar sugerencias si hay coincidencias
+                            expandedCountryObtencion = new.isNotBlank() && countryListObtencion.any { it.contains(new, ignoreCase = true) }
+                        },
+                        label = { Text("País") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(paisFocusRequesterObtencion)
+                            .onFocusChanged { fs ->
+                                if (!fs.isFocused) expandedCountryObtencion = false
+                                else {
+                                    val current = paisObtencion.text
+                                    expandedCountryObtencion = current.isNotBlank() && countryListObtencion.any {
+                                        it.contains(
+                                            current,
+                                            ignoreCase = true
+                                        )
+                                    }
+                                }
+                            },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { ciudadFocusRequesterObtencion.requestFocus() }),
+                        singleLine = true
                     )
 
-                    if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
-                        // Si ya tenemos permiso, abrimos directamente
-                        val uri = createImageUri(context)
-                        cameraImageUri.value = uri
-                        cameraLauncher.launch(uri)
-                    } else {
-                        // Si no, pedimos el permiso
-                        permissionLauncher.launch(Manifest.permission.CAMERA)
-                    }
-                }) {
-                    Text("Cámara")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Usa chapaState (la verdad de la base de datos) en lugar de chapa (el valor estático)
-            val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
-                ?: chapaState?.imagePath?.let { path ->
-                    rememberAsyncImagePainter(File(path))
-                }
-                ?: rememberAsyncImagePainter(null)
-
-            // Tamaño del marco cuadrado visible
-            val frameSizeDp = 300.dp
-            val density = LocalDensity.current
-            val frameSizePx = with(density) { frameSizeDp.toPx() }
-
-            // Estado del zoom y desplazamiento (ya estan decalaradas arriba)
-            //val scale = remember { mutableStateOf(1f) }
-            //val imageOffset = remember { mutableStateOf(Offset.Zero) }
-
-            // Tamaño aproximado de imagen mostrada para limitar desplazamiento
-            val imageWidth = 512f  // o el tamaño real si lo conoces
-            val imageHeight = 512f
-
-            Box(
-                modifier = Modifier
-                    .size(frameSizeDp)
-                    .clip(RectangleShape)
-                    .background(Color.LightGray) // Útil para ver el fondo si la imagen no es cuadrada
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale.value = (scale.value * zoom).coerceIn(1f, 3f)
-
-                            // Cálculo dinámico para evitar que la imagen se salga del marco al moverla
-                            val maxX =
-                                ((frameSizePx * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
-                            val maxY =
-                                ((frameSizePx * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
-
-                            val newOffset = imageOffset.value + pan
-                            imageOffset.value = Offset(
-                                x = newOffset.x.coerceIn(-maxX, maxX),
-                                y = newOffset.y.coerceIn(-maxY, maxY)
-                            )
+                    val visiblesObtencion = remember(paisObtencion.text) { countrySuggestionsObtencion }
+                    if (expandedCountryObtencion && visiblesObtencion.isNotEmpty()) {
+                        Surface(
+                            tonalElevation = 2.dp,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        ) {
+                            Column {
+                                visiblesObtencion.take(5).forEachIndexed { idx, ctry ->
+                                    Text(
+                                        text = ctry,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                paisObtencion = TextFieldValue(ctry)
+                                                expandedCountryObtencion = false
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    )
+                                    if (idx < minOf(visiblesObtencion.size - 1, 4)) HorizontalDivider()
+                                }
+                                if (visiblesObtencion.size > 5) {
+                                    Text(text = "...", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
                         }
                     }
-            ) {
-                Image(
-                    painter = painter,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop, // IMPORTANTE: Crop asegura que la imagen llene el cuadrado inicial
-                    modifier = Modifier
-                        .fillMaxSize() // Ocupa todo el Box de 300.dp
-                        .graphicsLayer(
-                            scaleX = scale.value,
-                            scaleY = scale.value,
-                            translationX = imageOffset.value.x,
-                            translationY = imageOffset.value.y
-                        )
-                )
+                }
 
-                OverlayCuadradoConGuiaCircular(modifier = Modifier.matchParentSize())
+                // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
+                Column {
+                    CityAutoCompleteField(
+                        label = "Ciudad",
+                        value = ciudadObtencion,
+                        onValueChange = { ciudadObtencion = it },
+                        suggestions = sugerenciasObtencion,
+                        focusRequester = ciudadFocusRequesterObtencion,
+                        onNext = { softwareKeyboardController?.hide()
+                            focusManager.clearFocus()
+                        }
+                    )
+
+                    // Espacio para sugerencias de ciudades (si decides implementarlas luego)
+                    if (expandedCiudad && false) { // Cambiar false por tu lógica de sugerencias
+                        Surface(
+                            tonalElevation = 2.dp,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        ) {
+                            // Contenido de sugerencias de ciudad similar a los anteriores
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -974,7 +1156,13 @@ fun EditChapaScreen(
                         estadoRayones = selectedRayones,
                         estadoMarcas = selectedMarcas,
                         estadoOxido = selectedOxido,
-                        estadoPercent = estadoPercentCalc
+                        estadoPercent = estadoPercentCalc,
+                        // Campos de auditoría
+                        procedencia = procedencia,
+                        metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                        donante = if (procedencia == "Regalada") donante.text else null,
+                        paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                        ciudadObtencion = if (procedencia != "") ciudadObtencion else null
                     )
                     viewModel.updateChapa(actualizada)
                     onSave(actualizada)

@@ -19,6 +19,7 @@ import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.lifecycle.asLiveData
 import com.tuempresa.chapacollectionapp.utils.GeoRepository
 
 
@@ -44,6 +45,11 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
 
     var vistaCuadricula by mutableStateOf(false)
         private set
+
+    // Obtener listas únicas de la base de datos para sugerencias
+    val sugerenciasPaises: LiveData<List<String>> = repository.getUniquePaises().asLiveData()
+    val sugerenciasCiudades: LiveData<List<String>> = repository.getUniqueCiudades().asLiveData()
+    val sugerenciasDonantes: LiveData<List<String>> = repository.getUniqueDonantes().asLiveData()
 
     // Creamos una variable para saber si ya hemos cargado la preferencia
     private var preferenciaCargada = false
@@ -74,7 +80,12 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         estadoRayones: String? = null,
         estadoMarcas: String? = null,
         estadoOxido: String? = null,
-        estadoPercent: Int? = null
+        estadoPercent: Int? = null,
+        procedencia: String? = null,
+        metodoObtencion: String? = null,
+        donante: String? = null,
+        paisObtencion: String? = null,
+        ciudadObtencion: String? = null
     ) {
         if(imageUri != null){
             // 1. Buscamos las coordenadas antes de insertar
@@ -96,7 +107,12 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
                 estadoOxido = estadoOxido,
                 estadoPercent = estadoPercent,
                 latitud = coords?.first ?: 0.0,
-                longitud = coords?.second ?: 0.0
+                longitud = coords?.second ?: 0.0,
+                procedencia = procedencia,
+                metodoObtencion = metodoObtencion,
+                donante = donante,
+                paisObtencion = paisObtencion,
+                ciudadObtencion = ciudadObtencion
             )
             viewModelScope.launch {
                 repository.insert(chapa)

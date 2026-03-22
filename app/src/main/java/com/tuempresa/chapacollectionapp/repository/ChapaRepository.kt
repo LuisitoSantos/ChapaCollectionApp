@@ -30,4 +30,16 @@ class ChapaRepository(private val chapaDao: ChapaDao) {
     fun getChapaById(id: Int): Flow<Chapa?> {
         return chapaDao.getChapaById(id)
     }
+
+    fun getUniquePaises(): Flow<List<String>> {
+        return chapaDao.getUniquePaises()
+    }
+
+    fun getUniqueCiudades(): Flow<List<String>> {
+        return chapaDao.getUniqueCiudades()
+    }
+
+    fun getUniqueDonantes(): Flow<List<String>> {
+        return chapaDao.getUniqueDonantes()
+    }
 }
