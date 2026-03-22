@@ -8,14 +8,10 @@ import android.graphics.Canvas
 import android.graphics.Color as AndroidColor
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Environment
-import android.util.SizeF
-import android.widget.Toast
-import androidx.compose.ui.geometry.Offset
 import androidx.core.content.FileProvider
 import androidx.core.net.toUri
 import java.io.File

@@ -3,14 +3,11 @@ package com.tuempresa.chapacollectionapp.ui.screens
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.result.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
@@ -40,9 +37,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
@@ -54,11 +49,12 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.PopupProperties
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
-import androidx.core.text.color
 import androidx.navigation.NavHostController
+import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
+import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
+import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
 import com.tuempresa.chapacollectionapp.utils.GeoRepository
@@ -83,15 +79,13 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     var nombre by remember { mutableStateOf(TextFieldValue("")) }
     var pais by remember { mutableStateOf(TextFieldValue("")) }
-    //var ciudad by remember { mutableStateOf(TextFieldValue("")) }
     var ciudad by remember { mutableStateOf("") }
-    var expandedCiudad by remember { mutableStateOf(false) }
+    val expandedCiudad by remember { mutableStateOf(false) }
     var anio by remember { mutableStateOf(TextFieldValue("")) }
     val context = LocalContext.current
     val imageUriState = remember { mutableStateOf<Uri?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val scope = rememberCoroutineScope()
     val geoRepository = remember { GeoRepository(context) }
     var sugerencias by remember { mutableStateOf<List<String>>(emptyList()) }
 
@@ -110,17 +104,13 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     var sugerenciasObtencion by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Observar sugerencias del ViewModel
-    val listaPaises by viewModel.sugerenciasPaises.observeAsState(emptyList())
-    val listaCiudades by viewModel.sugerenciasCiudades.observeAsState(emptyList())
     val listaDonantes by viewModel.sugerenciasDonantes.observeAsState(emptyList())
 
-    val scrollState = rememberScrollState()
     val coroutineScope = rememberCoroutineScope()
 
 // Requesters para cada campo que quieres auto-scrollear
     val bringNombreIntoView = remember { BringIntoViewRequester() }
     val bringPaisObtencionIntoView = remember { BringIntoViewRequester() }
-    val bringCiudadObtencionIntoView = remember { BringIntoViewRequester() }
 
 
     // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
@@ -179,8 +169,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
                         if (originalBitmap != null) {
                             val rotatedBitmap = rotateBitmapIfRequired(context, uri, originalBitmap)
-                            //val squareBitmap = cropCenterSquare(rotatedBitmap)
-                            // resizedBitmap = Bitmap.createScaledBitmap(squareBitmap, 512, 512, true)
 
                             val file = File(context.cacheDir, "chapa_camera_temp_${System.currentTimeMillis()}.jpg")
                             val outputStream = FileOutputStream(file)
@@ -212,8 +200,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 val originalBitmap = BitmapFactory.decodeStream(inputStream)
                 inputStream?.close()
                 val rotatedBitmap = rotateBitmapIfRequired(context, uri, originalBitmap)
-                //val squareBitmap = cropCenterSquare(rotatedBitmap)
-                //val resizedBitmap = Bitmap.createScaledBitmap(squareBitmap, 512, 512, true)
 
                 val file = File(context.cacheDir, "chapa_gallery_temp_${System.currentTimeMillis()}.jpg")
                 val outputStream = FileOutputStream(file)
@@ -254,7 +240,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     //Fin del bloque
 
     val nombreFocusRequester = remember { FocusRequester() }
-    val nombreHasFocus = remember { mutableStateOf(false) }
 
 
     val nombresExistentes = chapas.map { it.nombre }.distinct()
@@ -419,21 +404,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(nombreFocusRequester)
-
-                            /*
-                            .onFocusChanged { focusState ->
-                                nombreHasFocus.value = focusState.isFocused
-                                if (!focusState.isFocused) expanded = false
-                                else {
-                                    val current = nombre.text
-                                    expanded = current.isNotBlank() && nombresExistentes.any {
-                                        it.contains(
-                                            current,
-                                            ignoreCase = true
-                                        ) && it != current
-                                    }
-                                }
-                            },*/
                             // 1. Registramos el componente para el scroll
                             .bringIntoViewRequester(bringNombreIntoView)
                             .onFocusChanged { focusState ->
@@ -567,30 +537,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
             // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
             Column {
-                /*
-                OutlinedTextField(
-                    value = ciudad,
-                    onValueChange = { new ->
-                        ciudad = new
-                        // Aquí podrías activar sugerencias de ciudades más adelante
-                        expandedCiudad = new.text.isNotBlank()
-                    },
-                    label = { Text("Ciudad (Opcional)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(ciudadFocusRequester)
-                        .onFocusChanged { fs ->
-                            if (!fs.isFocused) expandedCiudad = false
-                        },
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { anioFocusRequester.requestFocus() }
-                    ),
-                    singleLine = true
-                )*/
                 CityAutoCompleteField(
                     label = "Ciudad",
                     value = ciudad,
@@ -988,9 +934,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
             Spacer(modifier = Modifier.height(16.dp))
 
             // --- 2. LÓGICA CONDICIONAL ---
-
-            // --- DENTRO DE AddChapaScreen ---
-
             when (procedencia) {
                 "Mi" -> {
                     OpcionesSelector(
@@ -1103,7 +1046,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         onNext = { softwareKeyboardController?.hide()
                             focusManager.clearFocus()
                         }
-                        //onNext = { anioFocusRequester.requestFocus() } // Salta al año al terminar
                     )
 
                     // Espacio para sugerencias de ciudades (si decides implementarlas luego)
@@ -1121,28 +1063,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                     }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-
-
-
-                /*
-                // Campo PAÍS (Específico de obtención)
-                AutoCompleteTextField(
-                    label = "País de origen",
-                    value = paisObtencion,
-                    suggestions = listaPaises, // Usamos las sugerencias globales de países
-                    onValueChange = { paisObtencion = it }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Campo CIUDAD (Específico de obtención)
-                AutoCompleteTextField(
-                    label = "Ciudad de origen",
-                    value = ciudadObtencion,
-                    suggestions = listaCiudades, // Usamos las sugerencias globales de ciudades
-                    onValueChange = { ciudadObtencion = it }
-                )
-                 */
             }
 
             // Validación de campos obligatorios: Nombre, País e Imagen
@@ -1285,205 +1205,4 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     }
 }
 
-@Composable
-fun CityAutoCompleteField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    suggestions: List<String>,
-    focusRequester: FocusRequester,
-    imeAction: ImeAction = ImeAction.Next, // Valor por defecto
-    onNext: () -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                expanded = it.length >= 2 && suggestions.isNotEmpty()
-            },
-            label = { Text(label) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Words,
-                // CAMBIO 1: Usar el parámetro imeAction en lugar de ImeAction.Next fijo
-                imeAction = imeAction
-            ),
-            // CAMBIO 2: Definir las acciones para ambos casos (Siguiente y Hecho)
-            keyboardActions = KeyboardActions(
-                onNext = { onNext() },
-                onDone = { onNext() }
-            )
-        )
-
-        DropdownMenu(
-            expanded = expanded && suggestions.isNotEmpty(),
-            onDismissRequest = { expanded = false },
-            properties = PopupProperties(focusable = false),
-            modifier = Modifier.fillMaxWidth(0.8f)
-        ) {
-            suggestions.forEach { suggestion ->
-                DropdownMenuItem(
-                    text = { Text(suggestion) },
-                    onClick = {
-                        onValueChange(suggestion)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-fun procesarImagenParaChapa(bitmap: Bitmap): Bitmap {
-    val size = Math.min(bitmap.width, bitmap.height)
-    // Usamos Bitmap.Config.ARGB_8888 para permitir la transparencia de las esquinas
-    val output = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-
-    // IMPORTANTE: Usar el Canvas de android.graphics, no el de Compose
-    val canvas = android.graphics.Canvas(output)
-
-    val paint = android.graphics.Paint().apply {
-        isAntiAlias = true
-    }
-
-    val radius = size / 2f
-
-    // 1. Dibujamos un círculo lleno (nuestra máscara)
-    canvas.drawCircle(radius, radius, radius, paint)
-
-    // 2. Aplicamos el modo de recorte SRC_IN
-    // Esto hace que lo siguiente que dibujemos solo se vea donde ya hay color (el círculo)
-    paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
-
-    // Calculamos el rectángulo de origen para centrar la imagen si no es cuadrada
-    val srcRect = android.graphics.Rect(
-        (bitmap.width - size) / 2,
-        (bitmap.height - size) / 2,
-        (bitmap.width + size) / 2,
-        (bitmap.height + size) / 2
-    )
-    val destRect = android.graphics.Rect(0, 0, size, size)
-
-    canvas.drawBitmap(bitmap, srcRect, destRect, paint)
-
-    // 3. Dibujamos el borde negro (sin xfermode para que se pinte encima)
-    paint.xfermode = null
-    paint.style = android.graphics.Paint.Style.STROKE
-    paint.color = android.graphics.Color.BLACK
-    paint.strokeWidth = size * 0.04f // Borde del 4% del tamaño
-
-    // Dibujamos el borde ligeramente hacia adentro para que no se corte
-    canvas.drawCircle(radius, radius, radius - (paint.strokeWidth / 2), paint)
-
-    return output
-}
-
-@Composable
-fun AutoCompleteTextField(
-    label: String,
-    value: TextFieldValue,
-    suggestions: List<String>,
-    onValueChange: (TextFieldValue) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    // Filtrar sugerencias basadas en el texto actual
-    val filteredSuggestions = remember(value.text, suggestions) {
-        if (value.text.length < 1) emptyList()
-        else suggestions.filter { it.contains(value.text, ignoreCase = true) }.take(5)
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        OutlinedTextField(
-            value = value,
-            onValueChange = {
-                onValueChange(it)
-                // Abrir el menú solo si hay texto y hay sugerencias
-                expanded = it.text.isNotEmpty() && filteredSuggestions.isNotEmpty()
-            },
-            label = { Text(label) },
-            modifier = Modifier.fillMaxWidth(),
-            // Sin menuAnchor() ni trailingIcon para que parezca un campo normal
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                capitalization = KeyboardCapitalization.Words,
-                imeAction = ImeAction.Next
-            )
-        )
-
-        // Usamos un DropdownMenu estándar
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            // Importante para que no robe el foco del teclado mientras escribes
-            properties = PopupProperties(focusable = false),
-            modifier = Modifier.fillMaxWidth(0.9f) // Un poco más estrecho que el campo
-        ) {
-            filteredSuggestions.forEach { suggestion ->
-                DropdownMenuItem(
-                    text = { Text(suggestion) },
-                    onClick = {
-                        // Al hacer clic, actualizamos el texto y cerramos
-                        onValueChange(TextFieldValue(suggestion, TextRange(suggestion.length)))
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OpcionesSelector(
-    label: String,
-    options: List<String>,
-    selectedOption: String,
-    onOptionSelected: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Column {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium)
-        ExposedDropdownMenuBox(
-            expanded = expanded,
-            onExpandedChange = { expanded = !expanded },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = selectedOption,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Seleccionar") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                modifier = Modifier
-                    .menuAnchor()
-                    .fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.heightIn(max = 200.dp)
-            ) {
-                options.forEach { opcion ->
-                    DropdownMenuItem(
-                        text = { Text(opcion) },
-                        onClick = {
-                            onOptionSelected(opcion)
-                            expanded = false
-                        },
-                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                    )
-                }
-            }
-        }
-    }
-}

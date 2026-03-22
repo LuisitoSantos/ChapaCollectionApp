@@ -68,6 +68,9 @@ import java.util.Locale
 import android.Manifest
 import android.content.pm.PackageManager
 import androidx.core.content.ContextCompat
+import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
+import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
+import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -104,16 +107,11 @@ fun EditChapaScreen(
     var colorSec1 by remember { mutableStateOf("") }
     var colorSec2 by remember { mutableStateOf("") }
     var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
-    var scale = remember { mutableStateOf(1.0f) }
-    var imageOffset = remember { mutableStateOf(Offset.Zero) }
+    val scale = remember { mutableStateOf(1.0f) }
+    val imageOffset = remember { mutableStateOf(Offset.Zero) }
 
-    //var nombre by remember { mutableStateOf<TextFieldValue>(TextFieldValue(chapa.nombre ?: "")) }
-    //var pais by remember(chapa) { mutableStateOf(TextFieldValue(chapa.pais ?: "")) }
-    //var ciudad by remember { mutableStateOf(TextFieldValue(chapa.ciudad ?: "")) }
-    var expandedCiudad by remember { mutableStateOf(false) }
+    val expandedCiudad by remember { mutableStateOf(false) }
     // año como TextFieldValue para controlar cursor/selección y limitar a 4 dígitos
-    val initialAnioText = if ((chapa.anio ?: 0) > 0) (chapa.anio ?: 0).toString() else ""
-    //var anio by remember { mutableStateOf<TextFieldValue>(TextFieldValue(initialAnioText)) }
     var nuevaImagenUri by remember { mutableStateOf<Uri?>(null) }
     val cameraImageUri = remember { mutableStateOf<Uri?>(null) }
 
@@ -224,8 +222,6 @@ fun EditChapaScreen(
         }
     }
 
-
-
     //Este bloque asegura que al salir de la pantalla, el foco se limpie
     val focusManager = LocalFocusManager.current
     DisposableEffect(Unit) {
@@ -236,9 +232,6 @@ fun EditChapaScreen(
     //Fin del bloque
 
     val keyboardController = LocalSoftwareKeyboardController.current
-
-
-
     val nombreFocusRequester = remember { FocusRequester() }
     val paisFocusRequester = remember { FocusRequester() }
     val ciudadFocusRequester = remember { FocusRequester() }
@@ -383,12 +376,6 @@ fun EditChapaScreen(
             val frameSizePx = with(density) { frameSizeDp.toPx() }
 
             // Estado del zoom y desplazamiento (ya estan decalaradas arriba)
-            //val scale = remember { mutableStateOf(1f) }
-            //val imageOffset = remember { mutableStateOf(Offset.Zero) }
-
-            // Tamaño aproximado de imagen mostrada para limitar desplazamiento
-            val imageWidth = 512f  // o el tamaño real si lo conoces
-            val imageHeight = 512f
 
             Box(
                 modifier = Modifier
@@ -418,7 +405,7 @@ fun EditChapaScreen(
                     contentDescription = null,
                     contentScale = ContentScale.Crop, // IMPORTANTE: Crop asegura que la imagen llene el cuadrado inicial
                     modifier = Modifier
-                        .fillMaxSize() // Ocupa todo el Box de 300.dp
+                        .fillMaxSize() // Ocupa to do el Box de 300.dp
                         .graphicsLayer(
                             scaleX = scale.value,
                             scaleY = scale.value,
@@ -576,28 +563,6 @@ fun EditChapaScreen(
 
             // --- CAMPO CIUDAD (Opcional) ---
             Column {
-                /*
-                OutlinedTextField(
-                    value = ciudad,
-                    onValueChange = { incoming ->
-                        ciudad = incoming
-                        // Lógica para futuras sugerencias si las necesitas
-                        expandedCiudad = incoming.text.isNotBlank()
-                    },
-                    label = { Text("Ciudad (Opcional)") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(ciudadFocusRequester),
-                    keyboardOptions = KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Words,
-                        imeAction = ImeAction.Next
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { anioFocusRequester.requestFocus() }
-                    ),
-                    singleLine = true
-                )
-                */
                 CityAutoCompleteField(
                     label = "Ciudad",
                     value = ciudad.text, // Pasamos solo el string para la lógica del componente
@@ -648,14 +613,10 @@ fun EditChapaScreen(
             val coloresDisponibles = listOf("Rojo", "Azul", "Verde", "Amarillo", "Negro", "Blanco", "Plata", "Dorado", "Bronce", "Naranja")
 
             // Color Principal: Inicializamos con lo que ya tiene la chapa
-            //var colorPrimarioSeleccionado by remember { mutableStateOf(chapa.colorPrimario ?: "") }
             var expandedColorPrimario by remember { mutableStateOf(false) }
 
             // Colores Secundarios: El switch se activa si ya existe algún color secundario
-            //var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
-            //var colorSec1 by remember { mutableStateOf(chapa.colorSecundario1 ?: "") }
             var expandedSec1 by remember { mutableStateOf(false) }
-            //var colorSec2 by remember { mutableStateOf(chapa.colorSecundario2 ?: "") }
             var expandedSec2 by remember { mutableStateOf(false) }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -793,13 +754,9 @@ fun EditChapaScreen(
             val opcionesOxido = listOf("nada", "poco", "moderado", "demasiado")
 
             // Aseguramos que si vienen nulos de la base de datos, el TextField no falle
-            //var selectedForma by remember { mutableStateOf(chapa.estadoForma ?: "") }
             var expandedForma by remember { mutableStateOf(false) }
-            //var selectedRayones by remember { mutableStateOf(chapa.estadoRayones ?: "") }
             var expandedRayones by remember { mutableStateOf(false) }
-            //var selectedMarcas by remember { mutableStateOf(chapa.estadoMarcas ?: "") }
             var expandedMarcas by remember { mutableStateOf(false) }
-            //var selectedOxido by remember { mutableStateOf(chapa.estadoOxido ?: "") }
             var expandedOxido by remember { mutableStateOf(false) }
 
             fun mapValor(opcion: String?, tipo: String): Int {
@@ -1095,14 +1052,7 @@ fun EditChapaScreen(
                     expanded = false // Cerrar sugerencias antes de navegar
                     keyboardController?.hide()
                     focusManager.clearFocus(force = true) // <-- Esto limpia el foco y oculta sugerencias
-
                     onCancel()
-
-                    /*
-                    navController.navigate(Screen.Lista.route) {
-                        popUpTo(Screen.Lista.route) { inclusive = false }
-                        launchSingleTop = true
-                    }*/
                     navController.popBackStack(Screen.Lista.route, inclusive = false)
                 }) {
                     Text("Cancelar")
@@ -1166,41 +1116,11 @@ fun EditChapaScreen(
                     )
                     viewModel.updateChapa(actualizada)
                     onSave(actualizada)
-
-                    /*
-                    navController.navigate(Screen.Lista.route) {
-                        popUpTo(Screen.Lista.route) { inclusive = false }
-                        launchSingleTop = true
-                    }*/
                     navController.popBackStack(Screen.Lista.route, inclusive = false)
                 }) {
                     Text("Guardar")
                 }
-                /*Button(onClick = {
-                    val finalImagePath = nuevaImagenUri?.let {
-                        recortarImagenVisibleDesdeUri(context, it, scale.value, imageOffset.value)?.path
-                    } ?: chapa.imagePath
 
-                    val actualizada = chapa.copy(
-                        nombre = nombre,
-                        pais = pais,
-                        anio = anio,
-                        imagePath = finalImagePath
-                    )
-                    onSave(actualizada)
-
-                    nombre = ""
-                    pais = ""
-                    //anio.toString() = ""
-                    nuevaImagenUri = null
-
-                    navController.navigate(Screen.Lista.route) {
-                        popUpTo(Screen.Lista.route) { inclusive = false }
-                        launchSingleTop = true
-                    }
-                }) {
-                    Text("Guardar")
-                }*/
             }
         }
     }

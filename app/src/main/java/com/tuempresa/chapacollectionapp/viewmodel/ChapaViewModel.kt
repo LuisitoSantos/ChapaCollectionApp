@@ -18,7 +18,6 @@ import android.graphics.BitmapFactory
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.runtime.livedata.observeAsState
 import androidx.lifecycle.asLiveData
 import com.tuempresa.chapacollectionapp.utils.GeoRepository
 
@@ -47,8 +46,6 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         private set
 
     // Obtener listas únicas de la base de datos para sugerencias
-    val sugerenciasPaises: LiveData<List<String>> = repository.getUniquePaises().asLiveData()
-    val sugerenciasCiudades: LiveData<List<String>> = repository.getUniqueCiudades().asLiveData()
     val sugerenciasDonantes: LiveData<List<String>> = repository.getUniqueDonantes().asLiveData()
 
     // Creamos una variable para saber si ya hemos cargado la preferencia

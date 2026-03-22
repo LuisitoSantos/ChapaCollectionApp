@@ -31,10 +31,6 @@ import androidx.compose.material.Icon
 import androidx.compose.material.icons.filled.Public
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 
-// ... (tus imports anteriores se mantienen)
-
-// ... (tus imports anteriores se mantienen)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

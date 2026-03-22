@@ -23,8 +23,6 @@ import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.data.Chapa
 
-
-
 @Composable
 fun ChapaCard(
     chapa: Chapa,
