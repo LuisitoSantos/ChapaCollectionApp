@@ -27,3 +27,34 @@ data class Chapa(
     val paisObtencion: String? = null,
     val ciudadObtencion: String? = null
 )
+
+@Entity(tableName = "chapas")
+data class Chapa_Firebase(
+    @PrimaryKey(autoGenerate = true)
+    val firestoreId: String = "",
+    val nombre: String = "",
+    val pais: String = "",
+    val ciudad: String? = null,
+    val imagePath: String? = null,
+    val anio: Int? = null,
+    // Nuevos campos de color
+    val colorPrimario: String = "",
+    val colorSecundario1: String? = null,
+    val colorSecundario2: String? = null,
+    // Campos de estado
+    val estadoForma: String? = null,
+    val estadoRayones: String? = null,
+    val estadoMarcas: String? = null,
+    val estadoOxido: String? = null,
+    val estadoPercent: Int? = null,
+    val latitud: Double? = null,
+    val longitud: Double? = null,
+    val procedencia: String? = null,
+    val metodoObtencion: String? = null,
+    val donante: String? = null,
+    val paisObtencion: String? = null,
+    val ciudadObtencion: String? = null
+) {
+    // Firebase necesita un constructor sin argumentos,
+    // al poner valores por defecto en Kotlin, ya lo crea automáticamente.
+}

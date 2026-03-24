@@ -3,6 +3,8 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("kotlin-kapt")
+    // Add the Google services Gradle plugin
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -70,6 +72,7 @@ dependencies {
     // 3. NAVIGATION & HILT
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+    //implementation(libs.firebase.firestore.ktx)
 
     // 4. ROOM
     val roomVersion = "2.6.1"
@@ -97,4 +100,13 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
+    //FIREBASE
+    // Import the Firebase BoM
+    implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
+    // Añade las librerías que vamos a usar
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-firestore-ktx") // Base de datos
+    implementation("com.google.firebase:firebase-auth-ktx")      // Login
+    implementation("com.google.firebase:firebase-storage-ktx")   // Imágenes
 }
