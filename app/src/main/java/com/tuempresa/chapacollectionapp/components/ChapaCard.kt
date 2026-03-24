@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
@@ -21,8 +22,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.data.Chapa
-
-
 
 @Composable
 fun ChapaCard(
@@ -81,11 +80,13 @@ fun ChapaCard(
                         painter = rememberAsyncImagePainter(imageModel),
                         contentDescription = "Imagen de la chapa",
                         modifier = Modifier
-                            .size(100.dp)
-                            .padding(12.dp)
-                            .clip(RoundedCornerShape(8.dp)) // recorta la imagen con esquinas redondeadas
-                            .border(3.dp, Color.Black, RoundedCornerShape(8.dp)) // borde con mismas esquinas
-                            .background(Color.Black.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))
+                            .size(110.dp)
+                            .padding(10.dp)
+                            .clip(CircleShape)
+                            .border(3.dp, Color.Black, CircleShape)
+                            //.clip(RoundedCornerShape(8.dp)) // recorta la imagen con esquinas redondeadas
+                            //.border(3.dp, Color.Black, RoundedCornerShape(8.dp)) // borde con mismas esquinas
+                            //.background(Color.Black.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))
                             .clickable { onImageClick() }
                     )
                 }

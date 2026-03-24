@@ -19,8 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -40,7 +38,6 @@ import coil.compose.rememberAsyncImagePainter
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
 import androidx.core.content.FileProvider
 import java.io.File
-import java.util.Objects
 import kotlin.text.isNullOrBlank
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties

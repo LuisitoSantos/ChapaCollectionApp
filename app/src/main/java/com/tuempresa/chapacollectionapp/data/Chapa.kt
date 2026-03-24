@@ -8,6 +8,7 @@ data class Chapa(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val nombre: String,
     val pais: String,
+    val ciudad: String? = null,
     val imagePath: String? = null,
     val anio: Int? = null,
     // Nuevos campos de color
@@ -19,5 +20,12 @@ data class Chapa(
     val estadoRayones: String? = null,
     val estadoMarcas: String? = null,
     val estadoOxido: String? = null,
-    val estadoPercent: Int? = null
+    val estadoPercent: Int? = null,
+    val latitud: Double? = null,
+    val longitud: Double? = null,
+    val procedencia: String? = null,
+    val metodoObtencion: String? = null,
+    val donante: String? = null,
+    val paisObtencion: String? = null,
+    val ciudadObtencion: String? = null
 )

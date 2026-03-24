@@ -1,6 +1,7 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,19 +13,17 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.filled.ViewList
-// SwipeToDismiss todavía en material (no material3)
 import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
-import androidx.compose.material.DismissState
 import androidx.compose.material.DismissValue
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.rememberDismissState
 
 import androidx.compose.runtime.*
@@ -55,7 +54,6 @@ import com.tuempresa.chapacollectionapp.components.ChapaCard
 import com.tuempresa.chapacollectionapp.components.FiltroTopBar
 import com.tuempresa.chapacollectionapp.components.ImageDialog
 
-import kotlinx.coroutines.launch
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.min
@@ -145,7 +143,7 @@ fun ChapaOutline(
     }
 }
 
-@OptIn(ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
     val chapas by viewModel.allChapas.observeAsState(emptyList())
@@ -160,7 +158,6 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
 
     var imagenSeleccionada by remember { mutableStateOf<String?>(null) }
 
-    //var vistaCuadricula by remember { mutableStateOf(false) }
     val vistaCuadricula = viewModel.vistaCuadricula
 
     val context = LocalContext.current
@@ -185,6 +182,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     chapaAEditar.value?.let { chapa ->
         EditChapaScreen(
             chapa = chapa,
+            chapaId = chapa.id,
             onSave = {
                 viewModel.updateChapa(it)
                 chapaAEditar.value = null
@@ -220,7 +218,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                         viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
                     }) {
                         Icon(
-                            imageVector = if (vistaCuadricula) Icons.Default.List else Icons.Default.GridView,
+                            imageVector = if (vistaCuadricula) Icons.AutoMirrored.Filled.List else Icons.Default.GridView,
                             contentDescription = "Cambiar vista"
                         )
                     }
@@ -287,17 +285,16 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     items(items = chapasFiltradas, key = { it.id }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface)
                             .clickable { imagenSeleccionada = chapa.imagePath }
                         ) {
                             Image(
                                 painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
                                 contentDescription = "Imagen de la chapa",
-                                contentScale = ContentScale.Crop,
+                                // 1. Usamos Fit para ver el borde original de la imagen sin estirarlo
+                                contentScale = ContentScale.Fit,
                                 modifier = Modifier
                                     .fillMaxSize()
+                                    .clip(CircleShape)
                             )
 
                             // Badge porcentaje: 'ND' si null, o 'xx%'
@@ -317,74 +314,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
             } else {
                 var mostrarConfirmacion by remember { mutableStateOf(false) }
                 var chapaAEliminar by remember { mutableStateOf<Chapa?>(null) }
-                //val dismissStates = remember { mutableStateMapOf<Int, DismissState>() }
-                val scope = rememberCoroutineScope()
                 val onEditar: (Chapa) -> Unit = { chapa -> chapaAEditar.value = chapa }
                 val onEliminar: (Chapa) -> Unit = { chapa -> chapaAEliminar = chapa; mostrarConfirmacion = true }
 
-                /*
-                LazyColumn {
-                    items(chapasFiltradas) { chapa ->
-                        val dismissState = rememberDismissState()
-                        dismissStates[chapa.id] = dismissState
-
-
-                        LaunchedEffect(dismissState.currentValue) {
-                            when {
-                                dismissState.isDismissed(DismissDirection.EndToStart) -> {
-                                    chapaAEliminar = chapa
-                                    mostrarConfirmacion = true
-                                }
-                                dismissState.isDismissed(DismissDirection.StartToEnd) -> {
-                                    onEditar(chapa)
-                                    scope.launch { dismissState.animateTo(DismissValue.Default) }
-                                }
-                            }
-                        }
-                        SwipeToDismiss(
-                            state = dismissState,
-                            directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
-                            background = {
-                                val direction = dismissState.dismissDirection
-                                val color = when (direction) {
-                                    DismissDirection.StartToEnd -> Color(0xFFBBDEFB)
-                                    DismissDirection.EndToStart -> Color(0xFFFFCDD2)
-                                    else -> Color.Transparent
-                                }
-                                val icon = when (direction) {
-                                    DismissDirection.StartToEnd -> Icons.Default.Edit
-                                    DismissDirection.EndToStart -> Icons.Default.Delete
-                                    else -> null
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 12.dp, vertical = 4.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(color),
-                                    contentAlignment = if (direction == DismissDirection.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                ) {
-                                    icon?.let {
-                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier.padding(horizontal = 16.dp).size(24.dp))
-                                    }
-                                }
-                            },
-                            dismissContent = {
-                                ChapaCard(
-                                    chapa = chapa,
-                                    enEdicion = false,
-                                    onEditar = { onEditar(chapa) },
-                                    onEliminar = { onEliminar(chapa) },
-                                    onLongPress = {},
-                                    onTap = {},
-                                    onImageClick = { imagenSeleccionada = chapa.imagePath }
-                                )
-                            }
-                        )
-                    }
-                }
-                */
                 LazyColumn {
                     items(
                         items = chapasFiltradas,
@@ -410,7 +342,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
 
                         SwipeToDismiss(
                             state = dismissState,
-                            modifier = Modifier.animateItem(), // Animación suave al eliminar
+                            modifier = Modifier.animateItemPlacement(), // Animación suave al eliminar
                             directions = setOf(DismissDirection.StartToEnd, DismissDirection.EndToStart),
                             background = {
                                 val direction = dismissState.dismissDirection

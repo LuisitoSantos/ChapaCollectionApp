@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Chapa::class], version = 2, exportSchema = false)
+@Database(entities = [Chapa::class], version = 5, exportSchema = false)
 abstract class ChapaDatabase : RoomDatabase() {
 
     abstract fun chapaDao(): ChapaDao
@@ -20,7 +20,9 @@ abstract class ChapaDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChapaDatabase::class.java,
                     "chapa_database"
-                ).build()
+                )
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

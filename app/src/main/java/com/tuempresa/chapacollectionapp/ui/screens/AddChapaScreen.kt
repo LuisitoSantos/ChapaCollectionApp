@@ -9,11 +9,14 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -49,18 +52,26 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.navigation.NavHostController
+import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
+import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
+import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
+import com.tuempresa.chapacollectionapp.utils.GeoRepository
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeBitmap
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeUri
 import com.tuempresa.chapacollectionapp.utils.rotateBitmapIfRequired
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) {
 
@@ -68,10 +79,69 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     var nombre by remember { mutableStateOf(TextFieldValue("")) }
     var pais by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudad by remember { mutableStateOf("") }
+    val expandedCiudad by remember { mutableStateOf(false) }
     var anio by remember { mutableStateOf(TextFieldValue("")) }
     val context = LocalContext.current
     val imageUriState = remember { mutableStateOf<Uri?>(null) }
     val keyboardController = LocalSoftwareKeyboardController.current
+
+    val geoRepository = remember { GeoRepository(context) }
+    var sugerencias by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Estados para los nuevos campos
+    var procedencia by remember { mutableStateOf("") } // "Mi" o "Regalada"
+    var metodoObtencion by remember { mutableStateOf("") } // "Bebida", etc.
+    var donante by remember { mutableStateOf(TextFieldValue("")) }
+
+    // En AddChapaScreen, junto a tus otros remembers:
+    var paisObtencion by remember { mutableStateOf(TextFieldValue("")) }
+    var ciudadObtencion by remember { mutableStateOf("") }
+
+    // Listas de opciones fijas
+    val opcionesProcedencia = listOf("Mi", "Regalada")
+    val opcionesMetodoMi = listOf("Bebida", "Encontrada", "Comprada", "Desconocido")
+    var sugerenciasObtencion by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    // Observar sugerencias del ViewModel
+    val listaDonantes by viewModel.sugerenciasDonantes.observeAsState(emptyList())
+
+    val coroutineScope = rememberCoroutineScope()
+
+// Requesters para cada campo que quieres auto-scrollear
+    val bringNombreIntoView = remember { BringIntoViewRequester() }
+    val bringPaisObtencionIntoView = remember { BringIntoViewRequester() }
+
+
+    // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
+    LaunchedEffect(Unit) {
+        viewModel.inicializarGeo(context)
+    }
+
+    // Cada vez que cambie el texto de 'ciudad' o el 'pais', buscamos sugerencias
+    LaunchedEffect(ciudad, pais.text) { // Usamos pais.text aquí
+        if (ciudad.length >= 2) {
+            val results = withContext(Dispatchers.IO) {
+                geoRepository.getCitySuggestions(ciudad, pais.text)
+            }
+            sugerencias = results
+        } else {
+            sugerencias = emptyList()
+        }
+    }
+
+    // NUEVO: Sugerencias para el campo de obtención propia/regalada
+    LaunchedEffect(ciudadObtencion, paisObtencion.text) {
+        if (ciudadObtencion.length >= 2) {
+            val results = withContext(Dispatchers.IO) {
+                // USAMOS paisObtencion.text para filtrar las ciudades de ese país concreto
+                geoRepository.getCitySuggestions(ciudadObtencion, paisObtencion.text)
+            }
+            sugerenciasObtencion = results
+        } else {
+            sugerenciasObtencion = emptyList()
+        }
+    }
 
     val imageBitmapState = remember { mutableStateOf<Bitmap?>(null) }
 
@@ -99,8 +169,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
                         if (originalBitmap != null) {
                             val rotatedBitmap = rotateBitmapIfRequired(context, uri, originalBitmap)
-                            //val squareBitmap = cropCenterSquare(rotatedBitmap)
-                            // resizedBitmap = Bitmap.createScaledBitmap(squareBitmap, 512, 512, true)
 
                             val file = File(context.cacheDir, "chapa_camera_temp_${System.currentTimeMillis()}.jpg")
                             val outputStream = FileOutputStream(file)
@@ -132,8 +200,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 val originalBitmap = BitmapFactory.decodeStream(inputStream)
                 inputStream?.close()
                 val rotatedBitmap = rotateBitmapIfRequired(context, uri, originalBitmap)
-                //val squareBitmap = cropCenterSquare(rotatedBitmap)
-                //val resizedBitmap = Bitmap.createScaledBitmap(squareBitmap, 512, 512, true)
 
                 val file = File(context.cacheDir, "chapa_gallery_temp_${System.currentTimeMillis()}.jpg")
                 val outputStream = FileOutputStream(file)
@@ -174,7 +240,6 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     //Fin del bloque
 
     val nombreFocusRequester = remember { FocusRequester() }
-    val nombreHasFocus = remember { mutableStateOf(false) }
 
 
     val nombresExistentes = chapas.map { it.nombre }.distinct()
@@ -182,6 +247,12 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
     //para pasar al siguiente campo con boton "siguiente"
     val paisFocusRequester = remember { FocusRequester() }
+    val ciudadFocusRequester = remember { FocusRequester() }
+    val anioFocusRequester = remember { FocusRequester() } // Necesitarás este para saltar desde ciudad
+
+    val paisFocusRequesterObtencion = remember { FocusRequester() }
+    val ciudadFocusRequesterObtencion = remember { FocusRequester() }
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current // Añade esto arriba
 
     Box(
         modifier = Modifier
@@ -204,6 +275,106 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
             Text("Nueva Chapa", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 120.dp))
             Spacer(modifier = Modifier.height(8.dp))
 
+            Text("Imagen*", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row {
+                Button(onClick = { galleryLauncher.launch("image/*") }) {
+                    Text("Galería")
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(onClick = {
+                    val permissionCheck = ContextCompat.checkSelfPermission(
+                        context,
+                        android.Manifest.permission.CAMERA
+                    )
+                    if (permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        val uri = createImageUri(context)
+                        // createImageUri devuelve una Uri válida
+                        cameraImageUri.value = uri
+                        cameraLauncher.launch(uri)
+                    } else {
+                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    }
+                }) {
+                    Text("Cámara")
+                }
+            }
+
+            imageUriState.value?.let { uri ->
+
+                val frameSizeDp = 300.dp
+                val density = LocalDensity.current
+                val frameSizePx = with(density) { frameSizeDp.toPx() }
+
+                // Calcular el tamaño mostrado (display) a partir del bitmap real para que
+                // los límites de desplazamiento coincidan con el cálculo del recorte.
+                val originalWidth = decodedBitmap?.width?.toFloat() ?: 1f
+                val originalHeight = decodedBitmap?.height?.toFloat() ?: 1f
+
+                // Mismo cálculo que en recortarImagenVisibleDesdeUri: ContentScale.Fit -> la dimensión mayor ocupa frameSizePx
+                val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+
+                val displayedWidth = originalWidth * scaleToDisplay
+                val displayedHeight = originalHeight * scaleToDisplay
+
+                Box(
+                    modifier = Modifier
+                        .size(frameSizeDp)
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                scale.value = (scale.value * zoom).coerceIn(1f, 3f)
+
+                                val maxX =
+                                    ((displayedWidth * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+                                val maxY =
+                                    ((displayedHeight * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
+
+                                val newOffset = imageOffset.value + pan
+                                imageOffset.value = Offset(
+                                    x = newOffset.x.coerceIn(-maxX, maxX),
+                                    y = newOffset.y.coerceIn(-maxY, maxY)
+                                )
+                            }
+                        }
+                ) {
+                    val bmp = decodedBitmap
+                    bmp?.let { bmpNonNull ->
+                        // Dibujar con Canvas para asegurar correspondencia exacta con el recorte final
+                        Canvas(modifier = Modifier.size(frameSizeDp)) {
+                            val framePx = frameSizePx
+                            val originalW = bmpNonNull.width.toFloat()
+                            val originalH = bmpNonNull.height.toFloat()
+                            val scaleToDisplayLocal = framePx / maxOf(originalW, originalH)
+
+                            val displayedW = originalW * scaleToDisplayLocal * scale.value
+                            val displayedH = originalH * scaleToDisplayLocal * scale.value
+
+                            val initialLeft = (framePx - displayedW) / 2f
+                            val initialTop = (framePx - displayedH) / 2f
+
+                            val destLeft = initialLeft + imageOffset.value.x
+                            val destTop = initialTop + imageOffset.value.y
+                            val destRight = destLeft + displayedW
+                            val destBottom = destTop + displayedH
+
+                            val destRect = android.graphics.RectF(destLeft, destTop, destRight, destBottom)
+                            val paint = android.graphics.Paint().apply { isFilterBitmap = true; isAntiAlias = true }
+
+                            drawIntoCanvas { canvas ->
+                                // Asegurarnos de recortar cualquier dibujo fuera del frame
+                                canvas.nativeCanvas.save()
+                                canvas.nativeCanvas.clipRect(0f, 0f, framePx, framePx)
+                                canvas.nativeCanvas.drawBitmap(bmpNonNull, null, destRect, paint)
+                                canvas.nativeCanvas.restore()
+                            }
+                        }
+
+                        OverlayCuadradoConGuiaCircular(modifier = Modifier.matchParentSize())
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             //Campo Nombre con sugerencias de valores ya introducidos anteriormente
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -233,12 +404,25 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(nombreFocusRequester)
+                            // 1. Registramos el componente para el scroll
+                            .bringIntoViewRequester(bringNombreIntoView)
                             .onFocusChanged { focusState ->
-                                nombreHasFocus.value = focusState.isFocused
-                                if (!focusState.isFocused) expanded = false
+                                if (focusState.isFocused) {
+                                    coroutineScope.launch {
+                                        // 2. Esperamos un poco a que el teclado suba y movemos la vista
+                                        kotlinx.coroutines.delay(200)
+                                        bringNombreIntoView.bringIntoView()
+                                        expanded = false
+                                    }
+                                }
                                 else {
                                     val current = nombre.text
-                                    expanded = current.isNotBlank() && nombresExistentes.any { it.contains(current, ignoreCase = true) && it != current }
+                                    expanded = current.isNotBlank() && nombresExistentes.any {
+                                        it.contains(
+                                            current,
+                                            ignoreCase = true
+                                        ) && it != current
+                                    }
                                 }
                             },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
@@ -263,7 +447,10 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
-                                                nombre = TextFieldValue(sugerencia, TextRange(sugerencia.length))
+                                                nombre = TextFieldValue(
+                                                    sugerencia,
+                                                    TextRange(sugerencia.length)
+                                                )
                                                 expanded = false
                                             }
                                             .padding(horizontal = 12.dp, vertical = 10.dp)
@@ -304,9 +491,16 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             if (!fs.isFocused) expandedCountry = false
                             else {
                                 val current = pais.text
-                                expandedCountry = current.isNotBlank() && countryList.any { it.contains(current, ignoreCase = true) }
+                                expandedCountry = current.isNotBlank() && countryList.any {
+                                    it.contains(
+                                        current,
+                                        ignoreCase = true
+                                    )
+                                }
                             }
                         },
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                    keyboardActions = KeyboardActions(onNext = { ciudadFocusRequester.requestFocus() }),
                     singleLine = true
                 )
 
@@ -341,6 +535,32 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 }
             }
 
+            // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
+            Column {
+                CityAutoCompleteField(
+                    label = "Ciudad",
+                    value = ciudad,
+                    onValueChange = { ciudad = it },
+                    suggestions = sugerencias,
+                    focusRequester = ciudadFocusRequester,
+                    onNext = { anioFocusRequester.requestFocus() } // Salta al año al terminar
+                )
+
+                // Espacio para sugerencias de ciudades (si decides implementarlas luego)
+                if (expandedCiudad && false) { // Cambiar false por tu lógica de sugerencias
+                    Surface(
+                        tonalElevation = 2.dp,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                    ) {
+                        // Contenido de sugerencias de ciudad similar a los anteriores
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+
             // Campo Año: forzar LTR, limitar a 4 dígitos, permitir borrado contínuo y bloquear entrada extra
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 OutlinedTextField(
@@ -371,7 +591,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         }
                     },
                     label = { Text("Año") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(anioFocusRequester),
                     keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
                     singleLine = true
                 )
@@ -456,7 +678,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         placeholder = { Text("Seleccionar color") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSec1) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedSec1,
@@ -492,7 +716,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         placeholder = { Text("Ninguno seleccionado") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedSec2) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedSec2,
@@ -603,7 +829,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedRayones) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedRayones,
@@ -635,7 +863,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedMarcas) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedMarcas,
@@ -667,7 +897,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         label = { Text("Seleccionar") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedOxido) },
                         colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
                     )
                     ExposedDropdownMenu(
                         expanded = expandedOxido,
@@ -686,104 +918,152 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Text("Imagen*", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(8.dp))
-            Row {
-                Button(onClick = { galleryLauncher.launch("image/*") }) {
-                    Text("Galería")
+            // --- 1. SELECCIÓN DE PROCEDENCIA ---
+            Text("¿Cómo llegó esta chapa?", style = MaterialTheme.typography.labelLarge)
+            OpcionesSelector( // Usa tu componente de dropdown actual
+                label = "Origen",
+                options = opcionesProcedencia,
+                selectedOption = procedencia,
+                onOptionSelected = {
+                    procedencia = it
+                    metodoObtencion = "" // Resetear hijos
+                    donante = TextFieldValue("")
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(onClick = {
-                    val permissionCheck = ContextCompat.checkSelfPermission(
-                        context,
-                        android.Manifest.permission.CAMERA
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // --- 2. LÓGICA CONDICIONAL ---
+            when (procedencia) {
+                "Mi" -> {
+                    OpcionesSelector(
+                        label = "¿Cómo se obtuvo?",
+                        options = opcionesMetodoMi,
+                        selectedOption = metodoObtencion,
+                        onOptionSelected = { metodoObtencion = it }
                     )
-                    if (permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        val uri = createImageUri(context)
-                        // createImageUri devuelve una Uri válida
-                        cameraImageUri.value = uri
-                        cameraLauncher.launch(uri)
-                    } else {
-                        cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
-                    }
-                }) {
-                    Text("Cámara")
+                }
+
+                "Regalada" -> {
+                    AutoCompleteTextField(
+                        label = "Nombre de quien la regaló",
+                        value = donante,
+                        suggestions = listaDonantes,
+                        onValueChange = { donante = it }
+                    )
                 }
             }
+            // Solo mostramos estos campos si es uno de estos tres métodos
+            if ((metodoObtencion in listOf("Bebida", "Encontrada", "Comprada") && procedencia == "Mi") || (procedencia == "Regalada")) {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            imageUriState.value?.let { uri ->
+                Text("Detalles de obtención propia", style = MaterialTheme.typography.labelMedium)
 
-                val frameSizeDp = 300.dp
-                val density = LocalDensity.current
-                val frameSizePx = with(density) { frameSizeDp.toPx() }
+                // Campo País: desplegable con búsqueda de países (Locale)
+                val countryListObtencion = remember {
+                    Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted()
+                }
+                var expandedCountryObtencion by remember { mutableStateOf(false) }
+                val countrySuggestionsObtencion = remember(paisObtencion.text) { countryListObtencion.filter { it.contains(paisObtencion.text, ignoreCase = true) } }
 
-                // Calcular el tamaño mostrado (display) a partir del bitmap real para que
-                // los límites de desplazamiento coincidan con el cálculo del recorte.
-                val originalWidth = decodedBitmap?.width?.toFloat() ?: 1f
-                val originalHeight = decodedBitmap?.height?.toFloat() ?: 1f
+                // Usamos OutlinedTextField y renderizamos sugerencias en Surface debajo (no roban foco)
+                Column {
+                    OutlinedTextField(
+                        value = paisObtencion.text,
+                        onValueChange = { new ->
+                            paisObtencion = TextFieldValue(new)
+                            // mostrar sugerencias si hay coincidencias
+                            expandedCountryObtencion = new.isNotBlank() && countryListObtencion.any { it.contains(new, ignoreCase = true) }
+                        },
+                        label = { Text("País") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(paisFocusRequesterObtencion)
+                            .onFocusChanged { fs ->
+                                if (!fs.isFocused){
+                                    expandedCountryObtencion = false
+                                }
+                                else {
+                                    coroutineScope.launch {
+                                        kotlinx.coroutines.delay(200)
+                                        bringPaisObtencionIntoView.bringIntoView()
+                                    }
+                                    val current = paisObtencion.text
+                                    expandedCountryObtencion =
+                                        current.isNotBlank() && countryListObtencion.any {
+                                            it.contains(
+                                                current,
+                                                ignoreCase = true
+                                            )
+                                        }
+                                }
+                            },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { ciudadFocusRequesterObtencion.requestFocus() }),
+                        singleLine = true
+                    )
 
-                // Mismo cálculo que en recortarImagenVisibleDesdeUri: ContentScale.Fit -> la dimensión mayor ocupa frameSizePx
-                val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
-
-                val displayedWidth = originalWidth * scaleToDisplay
-                val displayedHeight = originalHeight * scaleToDisplay
-
-                Box(
-                    modifier = Modifier
-                        .size(frameSizeDp)
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, pan, zoom, _ ->
-                                scale.value = (scale.value * zoom).coerceIn(1f, 3f)
-
-                                val maxX = ((displayedWidth * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
-                                val maxY = ((displayedHeight * scale.value) - frameSizePx).coerceAtLeast(0f) / 2f
-
-                                val newOffset = imageOffset.value + pan
-                                imageOffset.value = Offset(
-                                    x = newOffset.x.coerceIn(-maxX, maxX),
-                                    y = newOffset.y.coerceIn(-maxY, maxY)
-                                )
+                    val visiblesObtencion = remember(paisObtencion.text) { countrySuggestionsObtencion }
+                    if (expandedCountryObtencion && visiblesObtencion.isNotEmpty()) {
+                        Surface(
+                            tonalElevation = 2.dp,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp)
+                        ) {
+                            Column {
+                                visiblesObtencion.take(5).forEachIndexed { idx, ctry ->
+                                    Text(
+                                        text = ctry,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                paisObtencion = TextFieldValue(ctry)
+                                                expandedCountryObtencion = false
+                                            }
+                                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                                    )
+                                    if (idx < minOf(visiblesObtencion.size - 1, 4)) HorizontalDivider()
+                                }
+                                if (visiblesObtencion.size > 5) {
+                                    Text(text = "...", modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                         }
-                ) {
-                    val bmp = decodedBitmap
-                    bmp?.let { bmpNonNull ->
-                        // Dibujar con Canvas para asegurar correspondencia exacta con el recorte final
-                        Canvas(modifier = Modifier.size(frameSizeDp)) {
-                            val framePx = frameSizePx
-                            val originalW = bmpNonNull.width.toFloat()
-                            val originalH = bmpNonNull.height.toFloat()
-                            val scaleToDisplayLocal = framePx / maxOf(originalW, originalH)
-
-                            val displayedW = originalW * scaleToDisplayLocal * scale.value
-                            val displayedH = originalH * scaleToDisplayLocal * scale.value
-
-                            val initialLeft = (framePx - displayedW) / 2f
-                            val initialTop = (framePx - displayedH) / 2f
-
-                            val destLeft = initialLeft + imageOffset.value.x
-                            val destTop = initialTop + imageOffset.value.y
-                            val destRight = destLeft + displayedW
-                            val destBottom = destTop + displayedH
-
-                            val destRect = android.graphics.RectF(destLeft, destTop, destRight, destBottom)
-                            val paint = android.graphics.Paint().apply { isFilterBitmap = true; isAntiAlias = true }
-
-                            drawIntoCanvas { canvas ->
-                                // Asegurarnos de recortar cualquier dibujo fuera del frame
-                                canvas.nativeCanvas.save()
-                                canvas.nativeCanvas.clipRect(0f, 0f, framePx, framePx)
-                                canvas.nativeCanvas.drawBitmap(bmpNonNull, null, destRect, paint)
-                                canvas.nativeCanvas.restore()
-                            }
-                        }
-
-                        OverlayCuadradoConGuiaCircular(modifier = Modifier.matchParentSize())
                     }
-                 }
-             }
+                }
 
-            Spacer(modifier = Modifier.height(8.dp))
+                // --- CAMPO CIUDAD (Insertar después del bloque de País y antes de Año) ---
+                Column {
+                    CityAutoCompleteField(
+                        label = "Ciudad",
+                        value = ciudadObtencion,
+                        onValueChange = { ciudadObtencion = it },
+                        suggestions = sugerenciasObtencion,
+                        focusRequester = ciudadFocusRequesterObtencion,
+                        imeAction = ImeAction.Done, // <--- Forzamos que sea el último
+                        onNext = { softwareKeyboardController?.hide()
+                            focusManager.clearFocus()
+                        }
+                    )
+
+                    // Espacio para sugerencias de ciudades (si decides implementarlas luego)
+                    if (expandedCiudad && false) { // Cambiar false por tu lógica de sugerencias
+                        Surface(
+                            tonalElevation = 2.dp,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+
+                            ) {
+                            // Contenido de sugerencias de ciudad similar a los anteriores
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+            }
 
             // Validación de campos obligatorios: Nombre, País e Imagen
             val isNameValid = remember(nombre.text) { nombre.text.trim().isNotEmpty() }
@@ -863,6 +1143,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                                 recortarImagenVisibleDesdeUri(context, uri, scale.value, imageOffset.value, frameSizePx, maskRadiusPxDefault)
                             }
                         }
+                        val ciudadText = if (ciudad.isBlank()) null else ciudad
                         val anioInt = anio.text.toIntOrNull()
                         // Determinar colores seleccionados
                         val cp = colorPrimarioSeleccionado ?: ""
@@ -886,6 +1167,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             context,
                             nombre.text,
                             pais.text,
+                            ciudadText,
                             finalUri,
                             anioInt,
                             cp,
@@ -895,7 +1177,12 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             selectedRayones,
                             selectedMarcas,
                             selectedOxido,
-                            estadoPercent
+                            estadoPercent,
+                            procedencia = procedencia,
+                            metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                            donante = if (procedencia == "Regalada") donante.text else null,
+                            paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                            ciudadObtencion = if (procedencia != "") ciudadObtencion else null
                         )
                         // Reset form
                         nombre = TextFieldValue("")
@@ -917,3 +1204,5 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
         }
     }
 }
+
+
