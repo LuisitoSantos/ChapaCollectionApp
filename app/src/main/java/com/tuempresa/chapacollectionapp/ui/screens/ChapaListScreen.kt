@@ -182,7 +182,8 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     chapaAEditar.value?.let { chapa ->
         EditChapaScreen(
             chapa = chapa,
-            chapaId = chapa.id,
+            //chapaId = chapa.id,
+            chapaId = chapa.firestoreId,
             onSave = {
                 viewModel.updateChapa(it)
                 chapaAEditar.value = null
@@ -282,7 +283,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = chapasFiltradas, key = { it.id }) { chapa ->
+                    items(items = chapasFiltradas, key = { it.firestoreId }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
                             .clickable { imagenSeleccionada = chapa.imagePath }
@@ -320,7 +321,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 LazyColumn {
                     items(
                         items = chapasFiltradas,
-                        key = { it.id } // Usar 'key' es crucial para animaciones correctas
+                        key = { it.firestoreId } // Usar 'key' es crucial para animaciones correctas
                     ) { chapa ->
                         val dismissState = rememberDismissState(
                             confirmStateChange = {

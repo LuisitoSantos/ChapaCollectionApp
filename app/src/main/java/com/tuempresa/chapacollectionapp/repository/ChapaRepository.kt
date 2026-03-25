@@ -1,4 +1,4 @@
-package com.tuempresa.chapacollectionapp.repository
+/*package com.tuempresa.chapacollectionapp.repository
 
 import androidx.annotation.WorkerThread
 import com.tuempresa.chapacollectionapp.data.Chapa
@@ -27,8 +27,15 @@ class ChapaRepository(private val chapaDao: ChapaDao) {
         chapaDao.update(chapa)
     }
 
+    // Para Room, el ID es un Int autogenerado
+    /*
     fun getChapaById(id: Int): Flow<Chapa?> {
         return chapaDao.getChapaById(id)
+    }
+     */
+
+    fun getChapaById(firestoreId: String): Flow<Chapa?> {
+        return chapaDao.getChapaById(firestoreId)
     }
 
     fun getUniquePaises(): Flow<List<String>> {
@@ -43,3 +50,4 @@ class ChapaRepository(private val chapaDao: ChapaDao) {
         return chapaDao.getUniqueDonantes()
     }
 }
+*/

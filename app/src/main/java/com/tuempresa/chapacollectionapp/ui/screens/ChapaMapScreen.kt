@@ -345,16 +345,16 @@ private fun actualizarMarcadores(map: MapLibreMap, style: Style, chapas: List<Ch
                     })
                     add("properties", JsonObject().apply {
                         addProperty("nombre", chapa.nombre)
-                        addProperty("imagen_id", "img_${chapa.id}")
+                        addProperty("imagen_id", "img_${chapa.firestoreId}")
                     })
                 }
                 features.add(feature)
 
-                if (!chapa.imagePath.isNullOrEmpty() && style.getImage("img_${chapa.id}") == null) {
+                if (!chapa.imagePath.isNullOrEmpty() && style.getImage("img_${chapa.firestoreId}") == null) {
                     val bitmap = android.graphics.BitmapFactory.decodeFile(chapa.imagePath)
                     bitmap?.let {
                         val scaled = android.graphics.Bitmap.createScaledBitmap(it, 150, 150, false)
-                        style.addImage("img_${chapa.id}", scaled)
+                        style.addImage("img_${chapa.firestoreId}", scaled)
                     }
                 }
             }

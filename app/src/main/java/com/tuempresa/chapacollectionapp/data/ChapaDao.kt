@@ -1,3 +1,4 @@
+/*
 package com.tuempresa.chapacollectionapp.data
 
 import androidx.room.Dao
@@ -23,8 +24,17 @@ interface ChapaDao {
     @Update
     suspend fun update(chapa: Chapa)
 
+    // Para Room, el ID es un Int autogenerado
+    /*
     @Query("SELECT * FROM chapa_table WHERE id = :id")
     fun getChapaById(id: Int): Flow<Chapa?> // <--- AÑADE ESTA LÍNEA
+
+     */
+    // Para Firebase, el ID es un String (firestoreId)
+    @Query("SELECT * FROM chapa_table WHERE firestoreId = :firestoreId")
+    fun getChapaById(firestoreId: String): Flow<Chapa?>
+
+
 
     @Query("SELECT DISTINCT pais FROM chapa_table WHERE pais IS NOT NULL AND pais != '' ORDER BY pais ASC")
     fun getUniquePaises(): Flow<List<String>>
@@ -35,3 +45,4 @@ interface ChapaDao {
     @Query("SELECT DISTINCT donante FROM chapa_table WHERE donante IS NOT NULL AND donante != '' ORDER BY donante ASC")
     fun getUniqueDonantes(): Flow<List<String>>
 }
+*/

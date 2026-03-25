@@ -77,7 +77,7 @@ import com.tuempresa.chapacollectionapp.utils.createImageUri
 @Composable
 fun EditChapaScreen(
     chapa: Chapa,
-    chapaId: Int,
+    chapaId: String,
     onSave: (Chapa) -> Unit,
     onCancel: () -> Unit,
     navController: NavHostController,

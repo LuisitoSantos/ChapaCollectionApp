@@ -1,8 +1,9 @@
 package com.tuempresa.chapacollectionapp.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
+//import androidx.room.Entity
+//import androidx.room.PrimaryKey
 
+/*
 @Entity(tableName = "chapa_table")
 data class Chapa(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
@@ -27,10 +28,9 @@ data class Chapa(
     val paisObtencion: String? = null,
     val ciudadObtencion: String? = null
 )
+*/
 
-@Entity(tableName = "chapas")
-data class Chapa_Firebase(
-    @PrimaryKey(autoGenerate = true)
+data class Chapa(
     val firestoreId: String = "",
     val nombre: String = "",
     val pais: String = "",

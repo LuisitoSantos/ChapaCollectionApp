@@ -10,13 +10,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.tuempresa.chapacollectionapp.navigation.Screen
-import com.tuempresa.chapacollectionapp.repository.ChapaRepository
 import com.tuempresa.chapacollectionapp.ui.screens.AddChapaScreen
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaListScreen
 import com.tuempresa.chapacollectionapp.ui.theme.ChapaCollectionAppTheme
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModelFactory
-import com.tuempresa.chapacollectionapp.data.ChapaDatabase
 import androidx.compose.material.Scaffold
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material.BottomNavigation
@@ -35,9 +33,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val database = ChapaDatabase.getDatabase(this)
-        val repository = ChapaRepository(database.chapaDao())
-        val factory = ChapaViewModelFactory(repository)
+        //val database = ChapaDatabase.getDatabase(this)
+        //val repository = ChapaRepository(database.chapaDao())
+        //val factory = ChapaViewModelFactory(repository)
+        val firebaseService = com.tuempresa.chapacollectionapp.components.FirebaseService()
+        val factory = ChapaViewModelFactory(firebaseService)
 
         setContent {
             ChapaCollectionAppTheme {

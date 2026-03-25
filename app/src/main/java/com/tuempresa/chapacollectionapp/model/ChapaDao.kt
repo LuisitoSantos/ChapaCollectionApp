@@ -1,4 +1,4 @@
-package com.tuempresa.chapacollectionapp.model
+/*package com.tuempresa.chapacollectionapp.model
 
 import androidx.lifecycle.LiveData
 import androidx.room.Dao
@@ -35,3 +35,4 @@ interface ChapaDao {
     @Query("SELECT DISTINCT donante FROM chapa_table WHERE donante IS NOT NULL AND donante != '' ORDER BY donante ASC")
     fun getUniqueDonantes(): Flow<List<String>>
 }
+*/
