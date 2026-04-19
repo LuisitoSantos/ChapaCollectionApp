@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "229768664927",
-    "project_id": "chapapp-17e28",
-    "storage_bucket": "chapapp-17e28.firebasestorage.app"
+    "project_number": "473779454580",
+    "project_id": "chapapp-76900",
+    "storage_bucket": "chapapp-76900.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:229768664927:android:92f5d4103945ed7a1348ea",
+        "mobilesdk_app_id": "1:473779454580:android:ed2d7bfc0ff5977f7d8721",
         "android_client_info": {
           "package_name": "com.tuempresa.chapacollectionapp"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyB1wedRwJWvn1cZMltBYRvRx4glPexqoZY"
+          "current_key": "AIzaSyBpRC11NNQ-3d73cERyOwBvJvcRRcWyQsQ"
         }
       ],
       "services": {

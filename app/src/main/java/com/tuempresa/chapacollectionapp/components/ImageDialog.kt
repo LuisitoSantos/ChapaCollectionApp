@@ -13,6 +13,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,13 +23,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil.compose.AsyncImage
 import coil.compose.rememberAsyncImagePainter
 import java.io.File
 
+/*
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun ImageDialog(imageUri: Uri?, imagePath: String?, onDismiss: () -> Unit) {
@@ -71,6 +77,36 @@ fun ImageDialog(imageUri: Uri?, imagePath: String?, onDismiss: () -> Unit) {
         }
     }
 
+}
+
+ */
+
+@Composable
+fun ImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        // Esto permite que el diálogo use todo el ancho posible sin márgenes forzados
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                // ELIMINAMOS: .background(Color.White)
+                // ELIMINAMOS: .clip(RoundedCornerShape(16.dp))
+                .clickable { onDismiss() }, // Opcional: cerrar al tocar la imagen
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = "Imagen ampliada",
+                modifier = Modifier
+                    .fillMaxSize(0.9f) // Un poco de margen para que no toque los bordes del móvil
+                    .clip(CircleShape), // Mantenemos la forma circular de la chapa
+                contentScale = ContentScale.Fit
+            )
+        }
+    }
 }
 
 

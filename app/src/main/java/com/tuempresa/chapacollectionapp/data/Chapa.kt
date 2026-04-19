@@ -1,5 +1,10 @@
 package com.tuempresa.chapacollectionapp.data
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
 //import androidx.room.Entity
 //import androidx.room.PrimaryKey
 
@@ -34,8 +39,11 @@ data class Chapa(
 */
 
 //Para Firebase
-data class Chapa(
-    val firestoreId: String = "",
+@Serializable
+data class Chapa @OptIn(ExperimentalSerializationApi::class) constructor(
+    @SerialName("id")
+    @EncodeDefault // Evita enviar el campo si es su valor por defecto (null)
+    val id: Long? = null,
     val nombre: String = "",
     val pais: String = "",
     val ciudad: String? = null,

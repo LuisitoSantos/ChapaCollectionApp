@@ -63,6 +63,7 @@ import java.io.File
 // Material3
 import androidx.compose.material3.*
 import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
 
 // Fin de imports
 
@@ -146,7 +147,9 @@ fun ChapaOutline(
 @OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
-    val chapas by viewModel.allChapas.observeAsState(emptyList())
+
+    //val chapas by viewModel.allChapas.observeAsState(emptyList())
+    val chapas by viewModel.chapasSupabase
 
     val categoriasDisponibles = listOf("Nombre", "Pais")
     var categoriaSeleccionada by remember { mutableStateOf<String?>(null) }
@@ -178,14 +181,18 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         else -> emptyList()
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.cargarChapasDeSupabase()
+    }
+
     // Mostrar pantalla de edición si hay una chapa seleccionada
     chapaAEditar.value?.let { chapa ->
         EditChapaScreen(
             chapa = chapa,
             //chapaId = chapa.id,
-            chapaId = chapa.firestoreId,
-            onSave = {
-                viewModel.updateChapa(it)
+            chapaId = chapa.id.toString(),
+            onSave = { chapaActualizada, uriDeImagen -> // <--- DECLARAMOS LOS NOMBRES AQUÍ
+                viewModel.updateChapaEnSupabase(context, chapaActualizada, uriDeImagen)
                 chapaAEditar.value = null
             },
             onCancel = { chapaAEditar.value = null },
@@ -198,7 +205,11 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) { detectTapGestures(onTap = { chapasEnEdicion.value = emptySet() }) }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    chapasEnEdicion.value = emptySet()
+                })
+            }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -283,13 +294,14 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = chapasFiltradas, key = { it.firestoreId }) { chapa ->
+                    items(items = chapasFiltradas, key = { it.nombre + (it.imagePath ?: "sin_imagen") }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
                             .clickable { imagenSeleccionada = chapa.imagePath }
                         ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
+                            AsyncImage(
+                                //painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
+                                model = chapa.imagePath,
                                 contentDescription = "Imagen de la chapa",
                                 // 1. Usamos Fit para ver el borde original de la imagen sin estirarlo
                                 contentScale = ContentScale.Fit,
@@ -302,7 +314,10 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                             Box(modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
-                                .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(6.dp))
+                                .background(
+                                    MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(6.dp)
+                                )
                                 .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
@@ -321,7 +336,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 LazyColumn {
                     items(
                         items = chapasFiltradas,
-                        key = { it.firestoreId } // Usar 'key' es crucial para animaciones correctas
+                        key = { it.nombre + (it.imagePath ?: "") } // Usar 'key' es crucial para animaciones correctas
                     ) { chapa ->
                         val dismissState = rememberDismissState(
                             confirmStateChange = {
@@ -367,7 +382,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                                     contentAlignment = if (direction == DismissDirection.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                                 ) {
                                     icon?.let {
-                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier.padding(horizontal = 16.dp).size(24.dp))
+                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier
+                                            .padding(horizontal = 16.dp)
+                                            .size(24.dp))
                                     }
                                 }
                             },
@@ -398,7 +415,8 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                         text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
                         confirmButton = {
                             TextButton(onClick = {
-                                viewModel.deleteChapa(chapaAEliminar!!)
+                                //viewModel.deleteChapa(chapaAEliminar!!)
+                                viewModel.deleteChapaSupabase(chapaAEliminar!!)
                                 mostrarConfirmacion = false
                                 chapaAEliminar = null
                             }) { Text("Eliminar") }
@@ -417,6 +435,13 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         }
 
         // Diálogo de imagen ampliada
-        ImageDialog(imageUri = null, imagePath = imagenSeleccionada, onDismiss = { imagenSeleccionada = null })
+        //ImageDialog(imageUri = null, imagePath = imagenSeleccionada, onDismiss = { imagenSeleccionada = null })
+        imagenSeleccionada?.let { url ->
+            ImageDialog(
+                imageUrl = url,
+                onDismiss = { imagenSeleccionada = null }
+            )
+        }
     }
+
 }

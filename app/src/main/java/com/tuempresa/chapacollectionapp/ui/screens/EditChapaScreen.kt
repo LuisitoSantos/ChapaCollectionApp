@@ -67,7 +67,9 @@ import java.io.FileOutputStream
 import java.util.Locale
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
+import com.tuempresa.chapacollectionapp.R
 import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
 import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
@@ -78,7 +80,7 @@ import com.tuempresa.chapacollectionapp.utils.createImageUri
 fun EditChapaScreen(
     chapa: Chapa,
     chapaId: String,
-    onSave: (Chapa) -> Unit,
+    onSave: (Chapa, android.net.Uri?) -> Unit,
     onCancel: () -> Unit,
     navController: NavHostController,
     viewModel: ChapaViewModel // <-- NUEVO
@@ -364,11 +366,22 @@ fun EditChapaScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Usa chapaState (la verdad de la base de datos) en lugar de chapa (el valor estático)
-            val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
+            /*val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
                 ?: chapaState?.imagePath?.let { path ->
                     rememberAsyncImagePainter(File(path))
                 }
                 ?: rememberAsyncImagePainter(null)
+
+             */
+
+            val model = nuevaImagenUri ?: chapaState?.imagePath
+
+            val painter = rememberAsyncImagePainter(
+                model = model,
+                // Usamos iconos que vienen con Android por defecto
+                placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                error = painterResource(android.R.drawable.ic_menu_report_image)
+            )
 
             // Tamaño del marco cuadrado visible
             val frameSizeDp = 300.dp
@@ -968,12 +981,13 @@ fun EditChapaScreen(
                                 if (!fs.isFocused) expandedCountryObtencion = false
                                 else {
                                     val current = paisObtencion.text
-                                    expandedCountryObtencion = current.isNotBlank() && countryListObtencion.any {
-                                        it.contains(
-                                            current,
-                                            ignoreCase = true
-                                        )
-                                    }
+                                    expandedCountryObtencion =
+                                        current.isNotBlank() && countryListObtencion.any {
+                                            it.contains(
+                                                current,
+                                                ignoreCase = true
+                                            )
+                                        }
                                 }
                             },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
@@ -1094,11 +1108,13 @@ fun EditChapaScreen(
                     }
 
                     val actualizada = chapa.copy(
+                        id = chapa.id,
                         nombre = nombre.text,
                         pais = pais.text,
                         ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
                         anio = anio.text.toIntOrNull() ?: 0,
-                        imagePath = finalImageUri?.path ?: chapa.imagePath,
+                        //imagePath = finalImageUri?.path ?: chapa.imagePath,
+                        imagePath = chapa.imagePath, // Mantenemos el path local, FirebaseService se encargará de subir y actualizar la URL
                         colorPrimario = colorPrimarioSeleccionado ?: "",
                         colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
                         colorSecundario2 = if (tieneSecundarios) colorSec2 else null,
@@ -1114,8 +1130,12 @@ fun EditChapaScreen(
                         paisObtencion = if (procedencia != "") paisObtencion.text else null,
                         ciudadObtencion = if (procedencia != "") ciudadObtencion else null
                     )
-                    viewModel.updateChapa(actualizada)
-                    onSave(actualizada)
+
+                    val uriNueva = if (nuevaImagenUri != null) finalImageUri else null
+
+                    //viewModel.updateChapa(actualizada, uriNueva)
+                    viewModel.updateChapaEnSupabase(context, actualizada, uriNueva)
+                    onSave(actualizada, finalImageUri)
                     navController.popBackStack(Screen.Lista.route, inclusive = false)
                 }) {
                     Text("Guardar")

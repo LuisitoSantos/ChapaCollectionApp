@@ -5,6 +5,7 @@ plugins {
     id("kotlin-kapt")
     // Add the Google services Gradle plugin
     id("com.google.gms.google-services")
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -102,6 +103,12 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
+    // Supabase
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Base de datos
+    implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Fotos
+    implementation("io.ktor:ktor-client-android:2.3.11")               //
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")// Motor de red
 
     //FIREBASE
     // Import the Firebase BoM

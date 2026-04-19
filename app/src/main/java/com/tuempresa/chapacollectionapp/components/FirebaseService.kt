@@ -1,9 +1,9 @@
 package com.tuempresa.chapacollectionapp.components
 
-import androidx.compose.ui.geometry.isEmpty
-//import androidx.preference.isNotEmpty
+import android.net.Uri
+import android.util.Log
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.ktx.storage
+import com.google.firebase.storage.FirebaseStorage
 import com.tuempresa.chapacollectionapp.data.Chapa
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.channels.awaitClose
@@ -13,17 +13,16 @@ import kotlinx.coroutines.flow.callbackFlow
 class FirebaseService {
     private val db = FirebaseFirestore.getInstance()
     private val collection = db.collection("chapa_table")
-    private val storage = com.google.firebase.ktx.Firebase.storage
+    private val storage = FirebaseStorage.getInstance()
     private val storageRef = storage.reference.child("fotos_chapas")
 
     fun getChapasFlow(): Flow<List<Chapa>> = callbackFlow {
         val subscription = collection.addSnapshotListener { snapshot, error ->
             if (error != null) {
-                close(error)
+                Log.e("FirebaseService", "Error en el listener de Firestore: ${error.message}")
                 return@addSnapshotListener
             }
             if (snapshot != null) {
-                // toObjects requiere que Chapa tenga un constructor vacío o valores por defecto
                 val chapas = snapshot.toObjects(Chapa::class.java)
                 trySend(chapas)
             }
@@ -31,59 +30,73 @@ class FirebaseService {
         awaitClose { subscription.remove() }
     }
 
-    suspend fun saveChapa(chapa: Chapa, imageUri: android.net.Uri? = null) {
+    suspend fun saveChapa(chapa: Chapa, imageUri: Uri? = null) {
         try {
             var chapaParaGuardar = chapa
 
-            // 1. Si el usuario seleccionó una imagen nueva (URI local)
             if (imageUri != null) {
-                val firebaseUrl = uploadImage(imageUri)
-                if (firebaseUrl.isNotEmpty()) {
-                    // Reemplazamos la ruta local por la URL de internet
-                    chapaParaGuardar = chapaParaGuardar.copy(imagePath = firebaseUrl)
+                val urlNube = uploadImage(imageUri)
+                if (urlNube.isNotEmpty()) {
+                    // AQUÍ: Sobreescribimos el null inicial con la URL real de internet
+                    chapaParaGuardar = chapaParaGuardar.copy(imagePath = urlNube)
                 }
             }
 
-            // 2. Gestionar el ID de documento
-            val docRef = if (chapaParaGuardar.firestoreId.isEmpty()) {
-                collection.document()
+            val docId = if (chapaParaGuardar.id?.equals(null) == true) {
+                collection.document().id
             } else {
-                collection.document(chapaParaGuardar.firestoreId)
+                chapaParaGuardar.id
             }
 
-            // 3. Guardar con el ID generado
-            val finalChapa = chapaParaGuardar.copy(firestoreId = docRef.id)
-            docRef.set(finalChapa).await()
+            //val finalChapa = chapaParaGuardar.copy(id = docId)
+            val finalChapa = null
+            //collection.document(docId.toString()).set(finalChapa).await()
+            //Log.d("FirebaseService", "Documento guardado en Firestore con imagePath: ${finalChapa.imagePath}")
+
         } catch (e: Exception) {
-            throw e
+            Log.e("FirebaseService", "Error en saveChapa: ${e.message}")
+        }
+    }
+
+    private suspend fun uploadImage(localUri: Uri): String {
+        return try {
+            val fileName = "chapa_${System.currentTimeMillis()}.jpg"
+            val imageRef = storageRef.child(fileName)
+
+            Log.d("FirebaseService", "Abriendo stream de datos para la Uri: $localUri")
+
+            // 1. Obtenemos el contexto de la aplicación para poder leer la Uri
+            val context = com.google.firebase.FirebaseApp.getInstance().applicationContext
+
+            // 2. Abrimos el flujo de datos del archivo (esto salta las restricciones de file://)
+            val inputStream = context.contentResolver.openInputStream(localUri)
+                ?: throw Exception("No se pudo abrir el flujo de datos de la imagen")
+
+            // 3. Subimos el Stream (el chorro de bytes) en lugar del archivo físico
+            imageRef.putStream(inputStream).await()
+
+            // 4. Cerramos el stream para liberar memoria
+            inputStream.close()
+
+            // 5. Obtenemos la URL de descarga definitiva
+            val downloadUrl = imageRef.downloadUrl.await()
+            Log.d("FirebaseService", "¡Subida exitosa! URL: $downloadUrl")
+
+            downloadUrl.toString()
+
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "Error detallado en uploadImage: ${e.message}")
+            "" // Devolvemos vacío si falla para que el imagePath sea null y no rompa la app
         }
     }
 
     suspend fun deleteChapa(firestoreId: String) {
-        if (firestoreId.isNotEmpty()) {
-            collection.document(firestoreId).delete().await()
-        }
-    }
-
-    /**
-     * Sube una imagen a Firebase Storage y devuelve su URL pública
-     * [localUri] es la ruta del archivo en el móvil
-     */
-    suspend fun uploadImage(localUri: android.net.Uri): String {
-        return try {
-            // Creamos un nombre único para la imagen usando el tiempo actual
-            val fileName = "chapa_${java.lang.System.currentTimeMillis()}.jpg"
-            val imageRef = storageRef.child(fileName)
-
-            // Subimos el archivo
-            imageRef.putFile(localUri).await()
-
-            // Obtenemos la URL de descarga (la que guardaremos en Firestore)
-            val downloadUrl = imageRef.downloadUrl.await()
-            downloadUrl.toString()
-        } catch (e: java.lang.Exception) {
-            e.printStackTrace()
-            ""
+        try {
+            if (!firestoreId.isNullOrEmpty()) {
+                collection.document(firestoreId).delete().await()
+            }
+        } catch (e: Exception) {
+            Log.e("FirebaseService", "Error al eliminar de Firestore: ${e.message}")
         }
     }
 }
