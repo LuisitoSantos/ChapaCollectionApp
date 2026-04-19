@@ -1114,7 +1114,7 @@ fun EditChapaScreen(
                         ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
                         anio = anio.text.toIntOrNull() ?: 0,
                         //imagePath = finalImageUri?.path ?: chapa.imagePath,
-                        imagePath = chapa.imagePath, // Mantenemos el path local, FirebaseService se encargará de subir y actualizar la URL
+                        imagePath = chapa.imagePath, // Mantenemos el path local, SupabaseService se encargará de subir y actualizar la URL
                         colorPrimario = colorPrimarioSeleccionado ?: "",
                         colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
                         colorSecundario2 = if (tieneSecundarios) colorSec2 else null,

@@ -36,8 +36,8 @@ class MainActivity : ComponentActivity() {
         //val database = ChapaDatabase.getDatabase(this)
         //val repository = ChapaRepository(database.chapaDao())
         //val factory = ChapaViewModelFactory(repository)
-        val firebaseService = com.tuempresa.chapacollectionapp.components.FirebaseService()
-        val factory = ChapaViewModelFactory(firebaseService)
+        val supabaseService = com.tuempresa.chapacollectionapp.components.SupabaseService()
+        val factory = ChapaViewModelFactory(supabaseService)
 
         setContent {
             ChapaCollectionAppTheme {

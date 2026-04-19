@@ -2,29 +2,17 @@ package com.tuempresa.chapacollectionapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.tuempresa.chapacollectionapp.components.FirebaseService
+import com.tuempresa.chapacollectionapp.components.SupabaseService
 
-// Para Room, el factory se ve así, inyectando el repositorio:
-/*
-class ChapaViewModelFactory(private val repository: FirebaseService) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(ChapaViewModel::class.java)) {
-            return ChapaViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}
- */
-
-//Para Firebase, el factory se ve así, inyectando el servicio en lugar del repositorio de Room:
 class ChapaViewModelFactory(
-    private val firebaseService: FirebaseService
+    private val supabaseService: SupabaseService
 ) : ViewModelProvider.Factory {
+
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ChapaViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ChapaViewModel(firebaseService) as T
+            // Ahora inyectamos el servicio de Supabase en lugar del de Firebase
+            return ChapaViewModel(supabaseService) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
