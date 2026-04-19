@@ -21,6 +21,8 @@ playServicesMaps = "20.0.0"
 graphicsShapesAndroid = "1.1.0"
 uiDesktop = "1.7.0"
 firebaseFirestoreKtx = "26.1.2"
+roomCompiler = "2.8.4"
+room3Compiler = "3.0.0-alpha02"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -50,6 +52,8 @@ play-services-maps = { group = "com.google.android.gms", name = "play-services-m
 androidx-graphics-shapes-android = { group = "androidx.graphics", name = "graphics-shapes-android", version.ref = "graphicsShapesAndroid" }
 androidx-ui-desktop = { group = "androidx.compose.ui", name = "ui-desktop", version.ref = "uiDesktop" }
 firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-firestore-ktx", version.ref = "firebaseFirestoreKtx" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "roomCompiler" }
+androidx-room3-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room3Compiler" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
