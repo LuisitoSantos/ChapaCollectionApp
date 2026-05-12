@@ -117,36 +117,99 @@ class SupabaseService {
         try {
             var chapaFinal = chapa
 
-            // 1. Si hay una imagen nueva, la subimos
+            // 1. Si hay una imagen nueva
             if (nuevaImageUri != null) {
-                val fileName = "chapa_${System.currentTimeMillis()}.jpg"
-                val imageBytes = context.contentResolver.openInputStream(nuevaImageUri)?.readBytes()
+                // Borramos la antigua primero (usamos la URL que ya venía en el objeto chapa)
+                chapa.imagePath?.let { oldUrl ->
+                    deleteImageFromStorage(oldUrl)
+                }
 
-                if (imageBytes != null) {
-                    // Subir nueva imagen
-                    client.storage.from("fotos_chapas").upload(fileName, imageBytes)
-                    val newUrl = "https://gtdhkepkecrsijkgspjv.supabase.co/storage/v1/object/public/fotos_chapas/$fileName"
-
-                    // (Opcional) Borrar la imagen antigua para no llenar el storage
-                    chapa.imagePath?.let { oldUrl ->
-                        val oldFileName = oldUrl.substringAfterLast("/")
-                        try { client.storage.from("fotos_chapas").delete(listOf(oldFileName)) } catch(e: Exception) {}
-                    }
-
+                // Subimos la nueva
+                val newUrl = uploadImage(context, nuevaImageUri)
+                if (newUrl != null) {
                     chapaFinal = chapa.copy(imagePath = newUrl)
                 }
             }
 
-            // 2. Actualizar en la base de datos usando el ID
+            // 2. ACTUALIZACIÓN CRÍTICA:
+            // Asegúrate de que el ID no sea nulo.
+            // En Supabase .update() necesita un filtro para saber QUÉ fila tocar.
             client.from("chapas").update(chapaFinal) {
                 filter {
+                    // Cambia "id" por el nombre exacto de tu columna en Supabase (suele ser id)
                     eq("id", chapa.id ?: 0)
                 }
             }
-            Log.d("Supabase", "Chapa actualizada correctamente")
+            Log.d("Supabase", "Chapa con ID ${chapa.id} actualizada correctamente")
         } catch (e: Exception) {
             Log.e("Supabase", "Error al actualizar: ${e.message}")
             throw e
+        }
+    }
+
+
+    /*
+    suspend fun deleteImageFromStorage(imageUrl: String) {
+        try {
+            // 1. Limpiar URL de parámetros ?t=...
+            val cleanUrl = imageUrl.split("?")[0].trim()
+            // 2. Extraer el nombre del archivo
+            val fileName = cleanUrl.substringAfterLast("/")
+
+            if (fileName.isNotEmpty() && cleanUrl.contains("supabase")) {
+                Log.d("SupabaseStorage", "Intentando borrar de 'fotos_chapas': $fileName")
+
+                // 3. Importante: Asegúrate de que el bucket se llame "fotos_chapas"
+                client.storage.from("fotos_chapas").delete(listOf(fileName))
+
+                Log.d("SupabaseStorage", "Borrado solicitado con éxito")
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseStorage", "Error real al borrar: ${e.message}")
+        }
+    }
+
+     */
+
+    suspend fun deleteImageFromStorage(imageUrl: String) {
+        try {
+            // 1. Quitar TODO lo que haya después del "?" (parámetros de caché de Supabase)
+            val urlSinParametros = imageUrl.split("?")[0].trim()
+
+            // 2. Extraer el nombre real del archivo
+            val fileName = urlSinParametros.substringAfterLast("/")
+
+            if (fileName.isNotEmpty() && urlSinParametros.contains("supabase")) {
+                Log.d("SupabaseStorage", "Intentando borrar archivo: $fileName")
+
+                // 3. Importante: Asegurar que se borra del bucket correcto
+                client.storage.from("fotos_chapas").delete(listOf(fileName))
+
+                Log.d("SupabaseStorage", "Borrado confirmado en servidor")
+            }
+        } catch (e: Exception) {
+            Log.e("SupabaseStorage", "Error al eliminar: ${e.message}")
+        }
+    }
+
+    suspend fun uploadImage(context: Context, imageUri: Uri): String? {
+        return try {
+            val fileName = "chapa_${System.currentTimeMillis()}.jpg"
+            val inputStream = context.contentResolver.openInputStream(imageUri)
+            val bytes = inputStream?.use { it.readBytes() }
+
+            if (bytes != null) {
+                val bucket = client.storage.from("fotos_chapas")
+                bucket.upload(fileName, bytes, upsert = true)
+
+                // USAR EL MISMO FORMATO QUE EN SAVECHAPA
+                val publicUrl = "$supabaseUrl/storage/v1/object/public/fotos_chapas/$fileName"
+                Log.d("SupabaseService", "Nueva imagen subida: $publicUrl")
+                publicUrl
+            } else null
+        } catch (e: Exception) {
+            Log.e("SupabaseService", "Error al subir: ${e.message}")
+            null
         }
     }
 }

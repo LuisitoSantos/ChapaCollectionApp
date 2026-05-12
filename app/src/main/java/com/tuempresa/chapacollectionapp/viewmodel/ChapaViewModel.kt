@@ -29,6 +29,8 @@ class ChapaViewModel(
     private val supabaseService: SupabaseService = SupabaseService()
 ) : ViewModel() {
 
+    private var isUpdating = false
+
     // El repositorio de coordenadas se queda como propiedad de la clase
     private var geoRepository: GeoRepository? = null
 
@@ -270,32 +272,161 @@ class ChapaViewModel(
     fun deleteChapaSupabase(chapa: Chapa) {
         viewModelScope.launch {
             try {
+                // 1. Borrar la imagen del Storage si existe
+                if (!chapa.imagePath.isNullOrEmpty()) {
+                    supabaseService.deleteImageFromStorage(chapa.imagePath)
+                }
+
+                // 2. Borrar el registro de la base de datos
                 supabaseService.deleteChapa(chapa)
-                // Refrescamos la lista para que la UI se actualice
+
                 cargarChapasDeSupabase()
-                Log.d("Supabase", "Chapa eliminada: ${chapa.nombre}")
+                Log.d("Supabase", "Chapa e imagen eliminadas: ${chapa.nombre}")
             } catch (e: Exception) {
                 Log.e("Supabase", "Error al eliminar: ${e.message}")
             }
         }
     }
 
-    fun updateChapaEnSupabase(context: Context, chapa: Chapa, nuevaImageUri: Uri?) {
-        viewModelScope.launch {
+/*
+    fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Recalcular coordenadas por si cambió ciudad/país
-                val coords = geoRepository?.getCoordinates(chapa.pais, chapa.ciudad ?: "")
-                val chapaConCoords = chapa.copy(
-                    latitud = coords?.first ?: chapa.latitud,
-                    longitud = coords?.second ?: chapa.longitud
+                // 1. Recalcular coordenadas por si cambió el país o ciudad
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // 2. Creamos el objeto con las nuevas coordenadas (la imagen la gestiona el servicio)
+                val chapaConCoords = chapaEditada.copy(
+                    latitud = coords?.first ?: chapaOriginal.latitud,
+                    longitud = coords?.second ?: chapaOriginal.longitud
                 )
 
-                supabaseService.updateChapa(context, chapaConCoords, nuevaImageUri)
-                cargarChapasDeSupabase() // Refrescar lista
+                // 3. LLAMADA AL SERVICIO (Pasando los 3 parámetros que pide tu SupabaseService)
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaConCoords,
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                // 4. Refrescar la lista
+                cargarChapasDeSupabase()
+
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error al actualizar en ViewModel: ${e.message}")
+            }
+        }
+    }
+ */
+
+/*
+    //ESTE ES EL QUE MAS O MENOS FUNCIONA
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        if (isUpdating) return // Si ya está actualizando, ignoramos la segunda llamada
+        isUpdating = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Obtener coordenadas si cambiaron
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // 2. Llamar al servicio (que ahora maneja el borrado y subida)
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaEditada.copy(
+                        latitud = coords?.first ?: chapaOriginal.latitud,
+                        longitud = coords?.second ?: chapaOriginal.longitud
+                    ),
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                cargarChapasDeSupabase()
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error: ${e.message}")
+            } finally {
+                isUpdating = false // Liberamos el bloqueo
+            }
+        }
+    }
+    */
+
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        // 1. Bloqueo de seguridad en el hilo principal
+        if (isUpdating) return
+        isUpdating = true
+
+        try {
+            // 2. Ejecutar la lógica pesada en IO
+            withContext(Dispatchers.IO) {
+                // Obtener coordenadas si cambiaron
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // Preparamos el objeto asegurando que pasamos el imagePath original
+                // para que el Service sepa qué borrar.
+                val chapaParaActualizar = chapaEditada.copy(
+                    imagePath = chapaOriginal.imagePath,
+                    latitud = coords?.first ?: chapaOriginal.latitud,
+                    longitud = coords?.second ?: chapaOriginal.longitud
+                )
+
+                // LLAMADA ÚNICA AL SERVICIO
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaParaActualizar,
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                // Refrescamos datos
+                val lista = supabaseService.getChapas()
+
+                withContext(Dispatchers.Main) {
+                    _chapasSupabase.value = lista
+                    _allChapas.value = lista
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Supabase", "Error: ${e.message}")
+        } finally {
+            // 3. Liberar el bloqueo al final
+            isUpdating = false
+        }
+    }
+
+
+/*
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        withContext(Dispatchers.IO) {
+            try {
+                var urlFinal = chapaOriginal.imagePath
+
+                if (nuevaImageUri != null) {
+                    // SI HAY IMAGEN NUEVA:
+                    // Primero borramos lo que haya actualmente en Storage
+                    chapaOriginal.imagePath?.let { oldUrl ->
+                        if (oldUrl.contains("http")) { // Solo borrar si es una URL de internet
+                            supabaseService.deleteImageFromStorage(oldUrl)
+                        }
+                    }
+
+                    // Subimos la nueva (da igual si viene de cámara o galería)
+                    val newUrl = supabaseService.uploadImage(context, nuevaImageUri)
+                    if (newUrl != null) {
+                        urlFinal = newUrl
+                    }
+                }
+
+                // Actualizar la tabla en Supabase
+                val chapaConNuevaImagen = chapaEditada.copy(imagePath = urlFinal)
+                supabaseService.updateChapa(context, chapaConNuevaImagen, nuevaImageUri)
+
+                // RECARGA CRÍTICA:
+                // Después de actualizar, descargamos la lista de nuevo para que
+                // la próxima edición tenga la URL fresca.
+                cargarChapasDeSupabase()
+
             } catch (e: Exception) {
                 Log.e("Supabase", "Error: ${e.message}")
             }
         }
-    }
+    } */
 
 }

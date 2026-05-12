@@ -1,8 +1,10 @@
 package com.tuempresa.chapacollectionapp.components
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +33,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
+//import androidx.privacysandbox.tools.core.generator.build
+import coil.ImageLoader
+import coil.request.SuccessResult
+//import com.android.volley.toolbox.ImageLoader
+//import com.android.volley.toolbox.ImageRequest
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun CityAutoCompleteField(
@@ -231,6 +241,23 @@ fun OpcionesSelector(
                     )
                 }
             }
+        }
+    }
+}
+
+// Función para descargar la imagen de Supabase y convertirla a Bitmap
+suspend fun descargarBitmap(context: Context, url: String): android.graphics.Bitmap? {
+    return withContext(Dispatchers.IO) {
+        try {
+            val loader = ImageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(url)
+                .allowHardware(false) // Necesario para que MapLibre pueda usar el bitmap
+                .build()
+            val result = (loader.execute(request) as SuccessResult).drawable
+            (result as BitmapDrawable).bitmap
+        } catch (e: Exception) {
+            null
         }
     }
 }

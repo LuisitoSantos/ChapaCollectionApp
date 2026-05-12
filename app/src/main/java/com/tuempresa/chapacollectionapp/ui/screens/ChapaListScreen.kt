@@ -1,5 +1,7 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
+//import androidx.activity.result.launch
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -148,6 +150,7 @@ fun ChapaOutline(
 @Composable
 fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
 
+    val coroutineScope = rememberCoroutineScope()
     //val chapas by viewModel.allChapas.observeAsState(emptyList())
     val chapas by viewModel.chapasSupabase
 
@@ -186,13 +189,20 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     }
 
     // Mostrar pantalla de edición si hay una chapa seleccionada
-    chapaAEditar.value?.let { chapa ->
+    /*chapaAEditar.value?.let { chapaOriginal -> // Renombramos a chapaOriginal para mayor claridad
         EditChapaScreen(
-            chapa = chapa,
-            //chapaId = chapa.id,
-            chapaId = chapa.id.toString(),
-            onSave = { chapaActualizada, uriDeImagen -> // <--- DECLARAMOS LOS NOMBRES AQUÍ
-                viewModel.updateChapaEnSupabase(context, chapaActualizada, uriDeImagen)
+            chapa = chapaOriginal,
+            chapaId = chapaOriginal.id.toString(),
+            onSave = { chapaEditada, uriDeImagen ->
+                // AHORA PASAMOS LOS 4 PARÁMETROS:
+                coroutineScope.launch {
+                    viewModel.updateChapaEnSupabase(
+                        context = context,
+                        chapaOriginal = chapaOriginal,
+                        chapaEditada = chapaEditada,
+                        nuevaImageUri = uriDeImagen
+                    )
+                }
                 chapaAEditar.value = null
             },
             onCancel = { chapaAEditar.value = null },
@@ -200,6 +210,25 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
             viewModel = viewModel
         )
         return
+    }*/
+
+    // Mostrar pantalla de edición si hay una chapa seleccionada
+    chapaAEditar.value?.let { chapaOriginal ->
+        EditChapaScreen(
+            chapa = chapaOriginal,
+            chapaId = chapaOriginal.id.toString(),
+            onSave = { chapaEditada, uriDeImagen ->
+                // --- ELIMINAMOS LA LLAMADA AL VIEWMODEL DE AQUÍ ---
+                // Ya no hace falta el coroutineScope.launch { viewModel.updateChapaEnSupabase(...) }
+                // porque el botón "Guardar" de EditChapaScreen ya lo hizo.
+
+                chapaAEditar.value = null // Solo cerramos el editor
+            },
+            onCancel = { chapaAEditar.value = null },
+            navController = navController,
+            viewModel = viewModel
+        )
+        return // O simplemente return según tu estructura
     }
 
     Box(
@@ -294,7 +323,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = chapasFiltradas, key = { it.nombre + (it.imagePath ?: "sin_imagen") }) { chapa ->
+                    items(items = chapasFiltradas, key = { it.id ?: it.hashCode() }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
                             .clickable { imagenSeleccionada = chapa.imagePath }
@@ -336,7 +365,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 LazyColumn {
                     items(
                         items = chapasFiltradas,
-                        key = { it.nombre + (it.imagePath ?: "") } // Usar 'key' es crucial para animaciones correctas
+                        key = { it.id ?: it.hashCode() } // Usar 'key' es crucial para animaciones correctas
                     ) { chapa ->
                         val dismissState = rememberDismissState(
                             confirmStateChange = {
