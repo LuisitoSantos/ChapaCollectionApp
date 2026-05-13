@@ -40,6 +40,7 @@ class SupabaseService {
 
     suspend fun saveChapa(context: Context, chapa: Chapa, imageUri: Uri?) = withContext(Dispatchers.IO) {
         try {
+            val userIdActual = client.auth.currentSessionOrNull()?.user?.id
             var finalImageUrl = chapa.imagePath
 
             // 2. Subir imagen si existe
@@ -66,7 +67,8 @@ class SupabaseService {
             }
 
             // 4. Guardar los datos en la tabla 'chapas'
-            val chapaFinal = chapa.copy(imagePath = finalImageUrl)
+            //val chapaFinal = chapa.copy(imagePath = finalImageUrl)
+            val chapaFinal = chapa.copy(imagePath = finalImageUrl, userId = userIdActual)
 
             // Usamos el cliente para insertar en la tabla
             client.from("chapas").insert(chapaFinal)
@@ -141,6 +143,7 @@ class SupabaseService {
                 filter {
                     // Cambia "id" por el nombre exacto de tu columna en Supabase (suele ser id)
                     eq("id", chapa.id ?: 0)
+                    eq("user_id", client.auth.currentSessionOrNull()?.user?.id ?: "")
                 }
             }
             Log.d("Supabase", "Chapa con ID ${chapa.id} actualizada correctamente")
@@ -180,7 +183,10 @@ class SupabaseService {
             val urlSinParametros = imageUrl.split("?")[0].trim()
 
             // 2. Extraer el nombre real del archivo
-            val fileName = urlSinParametros.substringAfterLast("/")
+            //val fileName = urlSinParametros.substringAfterLast("/")
+
+            val userId = client.auth.currentSessionOrNull()?.user?.id ?: "anon"
+            val fileName = "$userId/chapa_${System.currentTimeMillis()}.jpg"
 
             if (fileName.isNotEmpty() && urlSinParametros.contains("supabase")) {
                 Log.d("SupabaseStorage", "Intentando borrar archivo: $fileName")
@@ -197,7 +203,10 @@ class SupabaseService {
 
     suspend fun uploadImage(context: Context, imageUri: Uri): String? {
         return try {
-            val fileName = "chapa_${System.currentTimeMillis()}.jpg"
+            //val fileName = "chapa_${System.currentTimeMillis()}.jpg"
+
+            val userId = client.auth.currentSessionOrNull()?.user?.id ?: "anon"
+            val fileName = "$userId/chapa_${System.currentTimeMillis()}.jpg"
             val inputStream = context.contentResolver.openInputStream(imageUri)
             val bytes = inputStream?.use { it.readBytes() }
 

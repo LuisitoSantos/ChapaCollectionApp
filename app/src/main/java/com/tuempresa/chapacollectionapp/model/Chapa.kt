@@ -1,5 +1,7 @@
 package com.tuempresa.chapacollectionapp.model
 
+import kotlinx.serialization.SerialName
+
 //import androidx.room.Entity
 //import androidx.room.PrimaryKey
 
@@ -53,7 +55,8 @@ data class Chapa(
     val metodoObtencion: String? = null,
     val donante: String? = null,
     val paisObtencion: String? = null,
-    val ciudadObtencion: String? = null
+    val ciudadObtencion: String? = null,
+    @SerialName("user_id") val userId: String? = null
 ) {
     // Firebase necesita un constructor sin argumentos,
     // al poner valores por defecto en Kotlin, ya lo crea automáticamente.
