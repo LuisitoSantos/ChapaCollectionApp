@@ -14,6 +14,8 @@ import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import io.github.jan.supabase.gotrue.Auth
+import io.github.jan.supabase.gotrue.auth
 
 class SupabaseService {
 
@@ -22,7 +24,7 @@ class SupabaseService {
     // Pon aquí tu ANON KEY real (la sacas de Settings -> API en Supabase)
     private val supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0ZGhrZXBrZWNyc2lqa2dzcGp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NjQwMDMsImV4cCI6MjA5MTI0MDAwM30.peTOOVa4k8SBSL_8f1j5aVOmaMwWuQ8FPJpa-0tbhoM"
 
-    private val client = createSupabaseClient(supabaseUrl, supabaseKey) {
+    val client = createSupabaseClient(supabaseUrl, supabaseKey) {
         install(Postgrest){
             // ESTA ES LA LÍNEA CLAVE:
             // Configura el serializador para que NO envíe campos nulos
@@ -33,6 +35,7 @@ class SupabaseService {
             })
         }
         install(Storage)
+        install(Auth)
     }
 
     suspend fun saveChapa(context: Context, chapa: Chapa, imageUri: Uri?) = withContext(Dispatchers.IO) {

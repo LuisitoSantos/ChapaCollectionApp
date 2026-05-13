@@ -116,8 +116,14 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 
     // Supabase
-    implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Base de datos
-    implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Fotos
+    val supabaseVersion = "2.5.0"
+    //implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Base de datos
+    //implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Fotos
     implementation("io.ktor:ktor-client-android:2.3.11")               //
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")// Motor de red
+    //implementation("io.github.jan-tennert.supabase:gotrue-kt:2.5.0")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:$supabaseVersion")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:$supabaseVersion")
+    implementation("io.github.jan-tennert.supabase:storage-kt:$supabaseVersion")
+    implementation("io.ktor:ktor-client-android:2.3.11")
 }
