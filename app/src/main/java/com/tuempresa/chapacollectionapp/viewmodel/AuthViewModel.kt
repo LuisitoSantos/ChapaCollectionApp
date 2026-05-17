@@ -1,5 +1,6 @@
 package com.tuempresa.chapacollectionapp.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.jan.supabase.SupabaseClient
@@ -58,13 +59,21 @@ class AuthViewModel(private val client: SupabaseClient) : ViewModel() {
     // Cerrar sesión
     fun signOut() {
         viewModelScope.launch {
-            client.auth.signOut()
-            _authState.value = AuthState.Idle
+            try {
+                client.auth.signOut() // Cierra sesión en Supabase
+            } catch (e: Exception) {
+                Log.e("Auth", "Error al cerrar sesión", e)
+            } finally {
+                // REPETO IMPORTANTE: Devolvemos el estado al inicio (Idle o inicial)
+                // para que la pantalla de Login no piense que sigue logueado o cargando
+                _authState.value = AuthState.Idle
+            }
         }
     }
 
     // Obtener el usuario actual
-    val currentUser = client.auth.currentSessionOrNull()?.user
+    //val currentUser = client.auth.currentSessionOrNull()?.user
+    val currentUser get() = client.auth.currentSessionOrNull()?.user
 }
 
 // Clase para manejar los estados de la pantalla de Login

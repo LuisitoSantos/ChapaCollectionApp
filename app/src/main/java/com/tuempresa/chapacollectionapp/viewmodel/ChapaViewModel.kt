@@ -21,6 +21,7 @@ import coil.request.SuccessResult
 import com.tuempresa.chapacollectionapp.components.SupabaseService
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
 
 
 class ChapaViewModel(
@@ -30,6 +31,8 @@ class ChapaViewModel(
 ) : ViewModel() {
 
     private var isUpdating = false
+
+    var criterioOrden by mutableStateOf("Nombre")
 
     // El repositorio de coordenadas se queda como propiedad de la clase
     private var geoRepository: GeoRepository? = null
@@ -215,8 +218,24 @@ class ChapaViewModel(
         if (!preferenciaCargada) {
             val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
             vistaCuadricula = prefs.getBoolean("is_grid", false)
+            // Cargamos también el orden
+            criterioOrden = prefs.getString("sort_criteria", "Nombre") ?: "Nombre"
             preferenciaCargada = true
         }
+    }
+
+    fun guardarCriterioOrden(context: Context, nuevoCriterio: String) {
+        criterioOrden = nuevoCriterio
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("sort_criteria", nuevoCriterio).apply()
+    }
+
+    // 2. Modifica esta para que guarde el valor por defecto
+    fun guardarPreferenciaVista(context: Context, esCuadricula: Boolean) {
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_grid", esCuadricula).apply()
+        // Opcional: si quieres que cambie la vista actual al instante:
+        vistaCuadricula = esCuadricula
     }
 
     fun setVistaCuadricula(context: Context, activa: Boolean) {

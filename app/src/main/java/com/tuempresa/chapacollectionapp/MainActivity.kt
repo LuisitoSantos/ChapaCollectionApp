@@ -152,7 +152,7 @@ class MainActivity : ComponentActivity() {
 
                     // TODA LA APP (Con su propia navegación interna)
                     composable("app_main") {
-                        MainAppContent(chapaViewModel)
+                        MainAppContent(chapaViewModel, authViewModel, rootNavController)
                     }
                 }
             }
@@ -161,7 +161,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainAppContent(chapaViewModel: ChapaViewModel) {
+fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel, rootNavController: NavController) {
     // 2. ESTE CONTROLADOR ES SOLO PARA LAS PESTAÑAS (Lista, Mapa, etc.)
     val snackNavController = rememberNavController()
 
@@ -202,7 +202,20 @@ fun MainAppContent(chapaViewModel: ChapaViewModel) {
             startDestination = Screen.Lista.route,
             modifier = androidx.compose.ui.Modifier.padding(innerPadding)
         ) {
-            composable(Screen.Lista.route) { ChapaListScreen(chapaViewModel, snackNavController) }
+            composable(Screen.Lista.route) {
+                ChapaListScreen(
+                    chapaViewModel,
+                    authViewModel,
+                    snackNavController, // Este sirve para navegar DENTRO de las pestañas
+                    onLogout = {        // Este sirve para SALIR al login
+                        rootNavController.navigate("login") {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                )
+            }
+
+            // Estas se quedan igual usando el snackNavController (el de las pestañas)
             composable(Screen.Mapa.route) { ChapaMapScreen(chapaViewModel) }
             composable(Screen.Buscar.route) { SearchChapaScreen(chapaViewModel, snackNavController) }
             composable(Screen.Anadir.route) { AddChapaScreen(chapaViewModel, snackNavController) }

@@ -26,6 +26,8 @@ import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.rememberDismissState
 
 import androidx.compose.runtime.*
@@ -64,8 +66,15 @@ import java.io.File
 
 // Material3
 import androidx.compose.material3.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.text.color
 import coil.compose.AsyncImage
+import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
+import kotlin.text.lowercase
+import kotlin.text.replace
+import kotlin.text.toIntOrNull
 
 // Fin de imports
 
@@ -148,8 +157,9 @@ fun ChapaOutline(
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
+fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, navController: NavHostController, onLogout: () -> Unit) {
 
+    var showMenu by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     //val chapas by viewModel.allChapas.observeAsState(emptyList())
     val chapas by viewModel.chapasSupabase
@@ -170,13 +180,36 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     viewModel.cargarPreferenciaVista(context)
 
     // Aplicar filtro si hay nombre seleccionado
-    val chapasFiltradas = chapas.filter {
+    /*val chapasFiltradas = chapas.filter {
         when (categoriaSeleccionada) {
             "Nombre" -> it.nombre in valoresSeleccionados || valoresSeleccionados.isEmpty()
             "Pais" -> it.pais in valoresSeleccionados || valoresSeleccionados.isEmpty()
             else -> true
         }
     }.sortedBy { it.nombre.lowercase() }
+
+     */
+
+    val chapasFiltradas = chapas.filter {
+        when (categoriaSeleccionada) {
+            "Nombre" -> it.nombre in valoresSeleccionados || valoresSeleccionados.isEmpty()
+            "Pais" -> it.pais in valoresSeleccionados || valoresSeleccionados.isEmpty()
+            else -> true
+        }
+    }.let { lista ->
+        // APLICAR ORDENACIÓN SEGÚN EL CRITERIO
+        when (viewModel.criterioOrden) {
+            "Nombre" -> lista.sortedBy { it.nombre.lowercase() }
+            "Pais" -> lista.sortedBy { it.pais.lowercase() }
+            "Color" -> lista.sortedBy { it.colorPrimario.lowercase() }
+            "Estado" -> lista.sortedByDescending {
+                // Extraer número del porcentaje (ej: "90%" -> 90)
+                it.estadoPercent ?: 0
+            }
+            "Año" -> lista.sortedByDescending { it.anio } // Más reciente a más antiguo
+            else -> lista.sortedBy { it.nombre.lowercase() }
+        }
+    }
 
     val valoresDisponibles = when (categoriaSeleccionada) {
         "Nombre" -> chapas.map { it.nombre }.distinct().sorted()
@@ -186,6 +219,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
 
     LaunchedEffect(Unit) {
         viewModel.cargarChapasDeSupabase()
+        viewModel.cargarPreferenciaVista(context)
     }
 
     // Mostrar pantalla de edición si hay una chapa seleccionada
@@ -287,6 +321,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 }
 
                 // Contador centrado por encima del Row (overlay estable)
+                /*
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -309,6 +344,115 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                             fontWeight = FontWeight.Bold,
                             color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
                         )
+                    }
+                }*/
+
+                // Contador centrado por encima del Row (overlay estable)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .zIndex(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
+
+                    // Envolvemos el contador en un Box clickable
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { showMenu = true }, // Al pulsar, activamos el menú
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ChapaOutline(
+                            modifier = Modifier.fillMaxSize(),
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
+                            strokeWidthDp = 1.dp,
+                            teeth = 16
+                        )
+
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        )
+
+                        // --- EL POP-UP (DropdownMenu) ---
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false } // Se cierra al pulsar fuera
+                        ) {
+                            Text(
+                                text = "Usuario: ${authViewModel.currentUser?.email ?: "Desconocido"}",
+                                modifier = Modifier.padding(16.dp, 8.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                            Divider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (viewModel.vistaCuadricula) "Vista actual: Cuadrícula" else "Vista actual: Lista")
+                                },
+                                onClick = {
+                                    // Al pulsar, cambiamos tanto la vista actual como la guardada
+                                    viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (viewModel.vistaCuadricula) Icons.Default.GridView else Icons.AutoMirrored.Filled.List,
+                                        contentDescription = null
+                                    )
+                                },
+                                trailingIcon = {
+                                    // Indicador visual de qué está seleccionado
+                                    Switch(
+                                        checked = viewModel.vistaCuadricula,
+                                        onCheckedChange = { viewModel.setVistaCuadricula(context, it) }
+                                    )
+                                }
+                            )
+
+                            Divider()
+                            Text(
+                                text = "Ordenar por:",
+                                modifier = Modifier.padding(16.dp, 4.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            val opcionesOrden = listOf("Nombre", "Pais", "Color", "Estado", "Año")
+
+                            opcionesOrden.forEach { opcion ->
+                                DropdownMenuItem(
+                                    text = { Text(opcion) },
+                                    onClick = {
+                                        viewModel.guardarCriterioOrden(context, opcion)
+                                        // No cerramos el menú para que pueda cambiar varios ajustes
+                                    },
+                                    leadingIcon = {
+                                        // Icono de check si es la opción seleccionada
+                                        if (viewModel.criterioOrden == opcion) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Green)
+                                        } else {
+                                            Spacer(modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                )
+                            }
+
+                            Divider()
+                            DropdownMenuItem(
+                                text = { Text("Cerrar Sesión") },
+                                onClick = {
+                                    showMenu = false
+                                    authViewModel.signOut() // 1. Borra sesión en Supabase
+                                    onLogout()              // 2. Ejecuta el salto al Login en el MainActivity
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.ExitToApp, contentDescription = null)
+                                }
+                            )
+                        }
                     }
                 }
             }
