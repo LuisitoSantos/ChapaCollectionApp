@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
@@ -28,15 +29,22 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.filled.Public
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import com.tuempresa.chapacollectionapp.ui.screens.LoginScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModelFactory
+import io.github.jan.supabase.gotrue.auth
 
 /*
 class MainActivity : ComponentActivity() {
@@ -134,6 +142,50 @@ class MainActivity : ComponentActivity() {
                 val currentUser = authViewModel.currentUser
                 val startDest = if (currentUser != null) "app_main" else "login"
 
+                // Usamos un estado para saber si ya hemos comprobado la sesión
+                var checkingAuth by remember { mutableStateOf(true) }
+                var userLoggedIn by remember { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    // Esperamos a que Supabase inicialice la sesión local
+                    userLoggedIn = authViewModel.isUserLoggedIn()
+                    checkingAuth = false
+
+                    supabaseService.client.auth.sessionStatus.collect { status ->
+                        userLoggedIn = authViewModel.isUserLoggedIn()
+                    }
+                }
+
+                if (checkingAuth) {
+                    // Muestra una pantalla vacía o un logo mientras comprueba
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    // Una vez comprobado, cargamos el NavHost normal
+                    NavHost(
+                        navController = rootNavController,
+                        startDestination = if (userLoggedIn) "app_main" else "login"
+                    ) {
+                        // PANTALLA DE LOGIN
+                        composable("login") {
+                            LoginScreen(
+                                viewModel = authViewModel,
+                                onLoginSuccess = {
+                                    rootNavController.navigate("app_main") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+
+                        // TODA LA APP (Con su propia navegación interna)
+                        composable("app_main") {
+                            MainAppContent(chapaViewModel, authViewModel, rootNavController)
+                        }
+                    }
+                }
+                /*
                 NavHost(
                     navController = rootNavController,
                     startDestination = startDest
@@ -155,6 +207,8 @@ class MainActivity : ComponentActivity() {
                         MainAppContent(chapaViewModel, authViewModel, rootNavController)
                     }
                 }
+
+                 */
             }
         }
     }

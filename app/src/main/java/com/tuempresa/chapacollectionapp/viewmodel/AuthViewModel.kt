@@ -56,6 +56,11 @@ class AuthViewModel(private val client: SupabaseClient) : ViewModel() {
         }
     }
 
+    fun isUserLoggedIn(): Boolean {
+        val session = client.auth.currentSessionOrNull()
+        return session != null && session.refreshToken != null
+    }
+
     // Cerrar sesión
     fun signOut() {
         viewModelScope.launch {
@@ -74,6 +79,7 @@ class AuthViewModel(private val client: SupabaseClient) : ViewModel() {
     // Obtener el usuario actual
     //val currentUser = client.auth.currentSessionOrNull()?.user
     val currentUser get() = client.auth.currentSessionOrNull()?.user
+
 }
 
 // Clase para manejar los estados de la pantalla de Login

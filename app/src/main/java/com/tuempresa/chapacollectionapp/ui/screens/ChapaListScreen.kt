@@ -69,8 +69,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
 import androidx.core.text.color
 import coil.compose.AsyncImage
+import com.tuempresa.chapacollectionapp.ui.components.ChapaIcon
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import kotlin.text.lowercase
 import kotlin.text.replace
@@ -357,6 +359,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                     val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
 
                     // Envolvemos el contador en un Box clickable
+                    /*
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -375,6 +378,38 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        )
+                     */
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp) // Tamaño del botón
+                            .clickable { showMenu = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
+                        val colorChapa = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+
+                        // AQUÍ USAS EL NUEVO COMPONENTE
+                        ChapaIcon(
+                            modifier = Modifier.fillMaxSize(),
+                            color = colorChapa,
+                            teeth = 15
+                        )
+                        /*
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colorChapa
+                        )
+                         */
+
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.ExtraBold, // Un poco más de peso para que resalte en el centro
+                                fontSize = 16.sp
+                            ),
+                            color = colorChapa
                         )
 
                         // --- EL POP-UP (DropdownMenu) ---
