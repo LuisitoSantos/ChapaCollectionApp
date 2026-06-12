@@ -1,8 +1,10 @@
+import java.util.Properties
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("kotlin-kapt")
+    kotlin("plugin.serialization") version "1.9.0"
 }
 
 android {
@@ -10,13 +12,28 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.tuempresa.chapacollection"
+        applicationId = "com.tuempresa.chapacollectionapp"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // 1. Cargamos las propiedades (usando el nombre 'props')
+        val props = Properties()
+        val propsFile = project.rootProject.file("local.properties")
+
+        if (propsFile.exists()) {
+            propsFile.inputStream().use { stream ->
+                props.load(stream)
+            }
+        }
+
+        // 2. IMPORTANTE: Usamos 'props' que es como definiste la variable arriba
+        // Añadimos ?: "" para que no falle si el archivo está vacío
+        buildConfigField("String", "SUPABASE_URL", "\"${props.getProperty("SUPABASE_URL") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${props.getProperty("SUPABASE_KEY") ?: ""}\"")
     }
 
     buildTypes {
@@ -37,6 +54,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.12"
@@ -46,6 +64,10 @@ android {
         resources {
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
+    }
+
+    configurations.all {
+        exclude(group = "com.intellij", module = "annotations")
     }
 }
 
@@ -70,12 +92,7 @@ dependencies {
     // 3. NAVIGATION & HILT
     implementation("androidx.navigation:navigation-compose:2.7.7")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
-
-    // 4. ROOM
-    val roomVersion = "2.6.1"
-    implementation("androidx.room:room-runtime:$roomVersion")
-    implementation("androidx.room:room-ktx:$roomVersion")
-    kapt("androidx.room:room-compiler:$roomVersion")
+    //implementation(libs.firebase.firestore.ktx)
 
     // 5. IMAGES (Coil)
     implementation("io.coil-kt:coil-compose:2.6.0")
@@ -97,4 +114,16 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
+    // Supabase
+    val supabaseVersion = "2.5.0"
+    //implementation("io.github.jan-tennert.supabase:postgrest-kt:2.5.0") // Base de datos
+    //implementation("io.github.jan-tennert.supabase:storage-kt:2.5.0")   // Fotos
+    implementation("io.ktor:ktor-client-android:2.3.11")               //
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")// Motor de red
+    //implementation("io.github.jan-tennert.supabase:gotrue-kt:2.5.0")
+    implementation("io.github.jan-tennert.supabase:postgrest-kt:$supabaseVersion")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt:$supabaseVersion")
+    implementation("io.github.jan-tennert.supabase:storage-kt:$supabaseVersion")
+    implementation("io.ktor:ktor-client-android:2.3.11")
 }

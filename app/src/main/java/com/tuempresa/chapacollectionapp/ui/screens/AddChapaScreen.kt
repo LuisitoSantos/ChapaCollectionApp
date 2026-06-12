@@ -57,6 +57,7 @@ import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.components.OverlayCuadradoConGuiaCircular
+import com.tuempresa.chapacollectionapp.data.Chapa
 import com.tuempresa.chapacollectionapp.utils.GeoRepository
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeBitmap
@@ -1163,6 +1164,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             ((1.0 - (promedio / 3.0)) * 100.0).toInt()
                         }
 
+                        /*
                         viewModel.insertChapa(
                             context,
                             nombre.text,
@@ -1183,7 +1185,37 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             donante = if (procedencia == "Regalada") donante.text else null,
                             paisObtencion = if (procedencia != "") paisObtencion.text else null,
                             ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                        )*/
+
+                        val nuevaChapa = Chapa(
+                            id = null, // Se asignará en el servicio
+                            nombre = nombre.text,
+                            pais = pais.text,
+                            ciudad = if (ciudad.isBlank()) null else ciudad,
+                            anio = anio.text.toIntOrNull(),
+                            colorPrimario = colorPrimarioSeleccionado ?: "",
+                            colorSecundario1 = colorSec1,
+                            colorSecundario2 = colorSec2,
+                            estadoForma = selectedForma,
+                            estadoRayones = selectedRayones,
+                            estadoMarcas = selectedMarcas,
+                            estadoOxido = selectedOxido,
+                            estadoPercent = estadoPercent,
+                            procedencia = procedencia,
+                            metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                            donante = if (procedencia == "Regalada") donante.text else null,
+                            paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                            ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
+                            imagePath = null // Se actualizará en el servicio tras subir la foto
                         )
+
+                        // 3. Llamar al ViewModel con la función que acabamos de crear
+                        viewModel.saveInSupabase(
+                            context = context,
+                            chapa = nuevaChapa,
+                            imageUri = finalUri
+                        )
+
                         // Reset form
                         nombre = TextFieldValue("")
                         pais = TextFieldValue("")

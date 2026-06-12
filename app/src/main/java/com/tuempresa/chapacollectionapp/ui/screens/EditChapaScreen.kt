@@ -67,7 +67,12 @@ import java.io.FileOutputStream
 import java.util.Locale
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.result.launch
+//import androidx.activity.result.launch
+import kotlinx.coroutines.launch
+import androidx.compose.ui.res.painterResource
 import androidx.core.content.ContextCompat
+import com.tuempresa.chapacollectionapp.R
 import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
 import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
@@ -77,8 +82,8 @@ import com.tuempresa.chapacollectionapp.utils.createImageUri
 @Composable
 fun EditChapaScreen(
     chapa: Chapa,
-    chapaId: Int,
-    onSave: (Chapa) -> Unit,
+    chapaId: String,
+    onSave: (Chapa, android.net.Uri?) -> Unit,
     onCancel: () -> Unit,
     navController: NavHostController,
     viewModel: ChapaViewModel // <-- NUEVO
@@ -130,6 +135,10 @@ fun EditChapaScreen(
     // Variables específicas para la obtención propia (para no interferir con las generales)
     var paisObtencion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudadObtencion by remember { mutableStateOf("") } // String, según tu CityAutoCompleteField
+
+    var isSaving by remember { mutableStateOf(false) }
+
+    val coroutineScope = rememberCoroutineScope()
 
     // 3. EL TRUCO: Cuando 'chapaState' cambie (porque Room detectó el guardado),
     // forzamos la actualización de los campos de texto.
@@ -364,11 +373,22 @@ fun EditChapaScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Usa chapaState (la verdad de la base de datos) en lugar de chapa (el valor estático)
-            val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
+            /*val painter = nuevaImagenUri?.let { rememberAsyncImagePainter(it) }
                 ?: chapaState?.imagePath?.let { path ->
                     rememberAsyncImagePainter(File(path))
                 }
                 ?: rememberAsyncImagePainter(null)
+
+             */
+
+            val model = nuevaImagenUri ?: chapaState?.imagePath
+
+            val painter = rememberAsyncImagePainter(
+                model = model,
+                // Usamos iconos que vienen con Android por defecto
+                placeholder = painterResource(android.R.drawable.ic_menu_gallery),
+                error = painterResource(android.R.drawable.ic_menu_report_image)
+            )
 
             // Tamaño del marco cuadrado visible
             val frameSizeDp = 300.dp
@@ -968,12 +988,13 @@ fun EditChapaScreen(
                                 if (!fs.isFocused) expandedCountryObtencion = false
                                 else {
                                     val current = paisObtencion.text
-                                    expandedCountryObtencion = current.isNotBlank() && countryListObtencion.any {
-                                        it.contains(
-                                            current,
-                                            ignoreCase = true
-                                        )
-                                    }
+                                    expandedCountryObtencion =
+                                        current.isNotBlank() && countryListObtencion.any {
+                                            it.contains(
+                                                current,
+                                                ignoreCase = true
+                                            )
+                                        }
                                 }
                             },
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
@@ -1060,67 +1081,308 @@ fun EditChapaScreen(
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                Button(onClick = {
-                    expanded = false // Cerrar sugerencias antes de navegar
-                    keyboardController?.hide()
-                    focusManager.clearFocus(force = true) // <-- Esto limpia el foco y oculta sugerencias
+                /*
+                Button(
+                    onClick = {
+                        if (!isSaving) { // Evita múltiples ejecuciones si se pulsa varias veces
+                            isSaving = true
 
+                            expanded = false
+                            keyboardController?.hide()
+                            focusManager.clearFocus(force = true)
 
-                    val uriParaProcesar = nuevaImagenUri ?: chapa.imagePath?.let { File(it).toUri() }
-                    if (uriParaProcesar == null) {
-                        Toast.makeText(context, "No hay imagen disponible para procesar", Toast.LENGTH_SHORT).show()
-                        return@Button
-                    }
+                            val uriParaProcesar = nuevaImagenUri ?: chapa.imagePath?.let { File(it).toUri() }
+                            if (uriParaProcesar == null) {
+                                Toast.makeText(context, "No hay imagen disponible", Toast.LENGTH_SHORT).show()
+                                isSaving = false
+                                return@Button
+                            }
 
-                    val finalImageUri = recortarImagenVisibleDesdeUri(
-                        context,
-                        uriParaProcesar,
-                        scale.value,
-                        imageOffset.value,
-                        frameSizePx
-                    )
+                            // 1. Procesar el recorte de imagen
+                            val finalImageUri = recortarImagenVisibleDesdeUri(
+                                context, uriParaProcesar, scale.value, imageOffset.value, frameSizePx
+                            )
 
-                    // calcular estadoPercent
-                    val anyStateEntered = listOf(selectedForma, selectedRayones, selectedMarcas, selectedOxido).any { !it.isNullOrBlank() }
-                    val estadoPercentCalc = if (!anyStateEntered) {
-                        null
+                            // calcular estadoPercent
+                            // 2. Lógica de estado y creación del objeto (Tu código actual)
+                            val anyStateEntered = listOf(selectedForma, selectedRayones, selectedMarcas, selectedOxido).any { !it.isNullOrBlank() }
+                            val estadoPercentCalc = if (!anyStateEntered) null else {
+                                val vf = mapValor(selectedForma, "forma")
+                                val vr = mapValor(selectedRayones, "rayones")
+                                val vm = mapValor(selectedMarcas, "marcas")
+                                val vo = mapValor(selectedOxido, "oxido")
+                                val prom = (vf + vr + vm + vo) / 4.0
+                                ((1.0 - (prom / 3.0)) * 100.0).toInt()
+                            }
+
+                            val actualizada = chapa.copy(
+                                id = chapa.id,
+                                nombre = nombre.text,
+                                pais = pais.text,
+                                ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
+                                anio = anio.text.toIntOrNull() ?: 0,
+                                imagePath = chapa.imagePath,
+                                colorPrimario = colorPrimarioSeleccionado ?: "",
+                                colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
+                                colorSecundario2 = if (tieneSecundarios) colorSec2 else null,
+                                estadoForma = selectedForma,
+                                estadoRayones = selectedRayones,
+                                estadoMarcas = selectedMarcas,
+                                estadoOxido = selectedOxido,
+                                estadoPercent = estadoPercentCalc,
+                                procedencia = procedencia,
+                                metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                                donante = if (procedencia == "Regalada") donante.text else null,
+                                paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                            )
+
+                            val uriNueva = if (nuevaImagenUri != null) finalImageUri else null
+
+                            // Llamada al ViewModel
+                            // --- CAMBIO CRÍTICO AQUÍ ---
+                            coroutineScope.launch {
+                                try {
+                                    // Ahora sí, esta línea "bloquea" la ejecución hasta que la imagen suba y la DB se actualice
+                                    viewModel.updateChapaEnSupabase(context, chapa, actualizada, uriNueva)
+
+                                    // Cuando llegamos aquí, los datos ya están refrescados en el ViewModel
+                                    onSave(actualizada, finalImageUri)
+                                    navController.popBackStack()
+                                } catch (e: Exception) {
+                                    isSaving = false
+                                    Toast.makeText(context, "Error al guardar", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isSaving // Deshabilita el botón visualmente mientras guarda
+                ) {
+                    if (isSaving) {
+                        // Muestra un pequeño círculo de carga en lugar del texto
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
                     } else {
-                        val vf = mapValor(selectedForma, "forma")
-                        val vr = mapValor(selectedRayones, "rayones")
-                        val vm = mapValor(selectedMarcas, "marcas")
-                        val vo = mapValor(selectedOxido, "oxido")
-                        val prom = (vf + vr + vm + vo) / 4.0
-                        ((1.0 - (prom / 3.0)) * 100.0).toInt()
+                        Text("Guardar")
                     }
-
-                    val actualizada = chapa.copy(
-                        nombre = nombre.text,
-                        pais = pais.text,
-                        ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
-                        anio = anio.text.toIntOrNull() ?: 0,
-                        imagePath = finalImageUri?.path ?: chapa.imagePath,
-                        colorPrimario = colorPrimarioSeleccionado ?: "",
-                        colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
-                        colorSecundario2 = if (tieneSecundarios) colorSec2 else null,
-                        estadoForma = selectedForma,
-                        estadoRayones = selectedRayones,
-                        estadoMarcas = selectedMarcas,
-                        estadoOxido = selectedOxido,
-                        estadoPercent = estadoPercentCalc,
-                        // Campos de auditoría
-                        procedencia = procedencia,
-                        metodoObtencion = if (procedencia != "") metodoObtencion else null,
-                        donante = if (procedencia == "Regalada") donante.text else null,
-                        paisObtencion = if (procedencia != "") paisObtencion.text else null,
-                        ciudadObtencion = if (procedencia != "") ciudadObtencion else null
-                    )
-                    viewModel.updateChapa(actualizada)
-                    onSave(actualizada)
-                    navController.popBackStack(Screen.Lista.route, inclusive = false)
-                }) {
-                    Text("Guardar")
                 }
 
+                 */
+
+                /*
+                Button(
+                    onClick = {
+                        if (!isSaving) {
+                            isSaving = true
+
+                            expanded = false
+                            keyboardController?.hide()
+                            focusManager.clearFocus(force = true)
+
+                            // 1. Detectar si hay una imagen nueva (Cámara o Galería)
+                            // Usamos nuevaImagenUri que es donde tu cameraLauncher y galleryLauncher guardan el resultado
+                            val hayNuevaImagen = nuevaImagenUri != null
+
+                            // 2. Determinar qué procesar para el recorte
+                            val uriParaProcesar = nuevaImagenUri ?: chapa.imagePath?.let {
+                                if (it.startsWith("http")) it.toUri() else File(it).toUri()
+                            }
+
+                            if (uriParaProcesar == null) {
+                                Toast.makeText(context, "No hay imagen disponible", Toast.LENGTH_SHORT).show()
+                                isSaving = false
+                                return@Button
+                            }
+
+                            // 3. Generar el recorte final
+                            val finalImageUri = recortarImagenVisibleDesdeUri(
+                                context,
+                                uriParaProcesar,
+                                scale.value,
+                                imageOffset.value,
+                                frameSizePx
+                            )
+
+                            // 4. Crear el objeto actualizado (Mantenemos tu lógica de copy)
+                            val anyStateEntered = listOf(selectedForma, selectedRayones, selectedMarcas, selectedOxido).any { !it.isNullOrBlank() }
+                            val estadoPercentCalc = if (!anyStateEntered) null else {
+                                val vf = mapValor(selectedForma, "forma")
+                                val vr = mapValor(selectedRayones, "rayones")
+                                val vm = mapValor(selectedMarcas, "marcas")
+                                val vo = mapValor(selectedOxido, "oxido")
+                                val prom = (vf + vr + vm + vo) / 4.0
+                                ((1.0 - (prom / 3.0)) * 100.0).toInt()
+                            }
+                            val actualizada = chapa.copy(
+                                id = chapa.id,
+                                nombre = nombre.text,
+                                pais = pais.text,
+                                ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
+                                anio = anio.text.toIntOrNull() ?: 0,
+                                imagePath = chapa.imagePath,
+                                colorPrimario = colorPrimarioSeleccionado ?: "",
+                                colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
+                                colorSecundario2 = if (tieneSecundarios) colorSec2 else null,
+                                estadoForma = selectedForma,
+                                estadoRayones = selectedRayones,
+                                estadoMarcas = selectedMarcas,
+                                estadoOxido = selectedOxido,
+                                estadoPercent = estadoPercentCalc,
+                                procedencia = procedencia,
+                                metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                                donante = if (procedencia == "Regalada") donante.text else null,
+                                paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                            )
+
+                            // --- CAMBIO CLAVE AQUÍ ---
+                            // Si hayNuevaImagen es true, pasamos el recorte al ViewModel.
+                            // El ViewModel, al recibir una URI no nula, borrará la antigua automáticamente.
+                            val uriAEnviarAlViewModel = if (hayNuevaImagen) finalImageUri else null
+
+                            coroutineScope.launch {
+                                try {
+                                    // LLAMADA AL VIEWMODEL
+                                    viewModel.updateChapaEnSupabase(
+                                        context,
+                                        chapa,           // chapa original (con la URL vieja para borrar)
+                                        actualizada,     // chapa con los nuevos textos
+                                        uriAEnviarAlViewModel // La nueva foto (o null si no cambió)
+                                    )
+
+                                    onSave(actualizada, finalImageUri)
+                                    navController.popBackStack()
+                                } catch (e: Exception) {
+                                    isSaving = false
+                                    Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isSaving
+                ) {
+                    if (isSaving) {
+                        // Muestra un pequeño círculo de carga en lugar del texto
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Guardar")
+                    }
+                }
+
+                 */
+
+                Button(
+                    onClick = {
+                        if (!isSaving) {
+                            isSaving = true // 1. Activamos el estado de carga (el botón cambiará a un círculo)
+
+                            expanded = false
+                            keyboardController?.hide()
+                            focusManager.clearFocus(force = true)
+
+                            val hayNuevaImagen = nuevaImagenUri != null
+
+                            val uriParaProcesar = nuevaImagenUri ?: chapa.imagePath?.let {
+                                if (it.startsWith("http")) it.toUri() else File(it).toUri()
+                            }
+
+                            if (uriParaProcesar == null) {
+                                Toast.makeText(context, "No hay imagen disponible", Toast.LENGTH_SHORT).show()
+                                isSaving = false
+                                return@Button
+                            }
+
+                            // 2. Procesamos el recorte
+                            val finalImageUri = recortarImagenVisibleDesdeUri(
+                                context,
+                                uriParaProcesar,
+                                scale.value,
+                                imageOffset.value,
+                                frameSizePx
+                            )
+
+                            val anyStateEntered = listOf(selectedForma, selectedRayones, selectedMarcas, selectedOxido).any { !it.isNullOrBlank() }
+                            val estadoPercentCalc = if (!anyStateEntered) null else {
+                                val vf = mapValor(selectedForma, "forma")
+                                val vr = mapValor(selectedRayones, "rayones")
+                                val vm = mapValor(selectedMarcas, "marcas")
+                                val vo = mapValor(selectedOxido, "oxido")
+                                val prom = (vf + vr + vm + vo) / 4.0
+                                ((1.0 - (prom / 3.0)) * 100.0).toInt()
+                            }
+
+                            val actualizada = chapa.copy(
+                                id = chapa.id,
+                                nombre = nombre.text,
+                                pais = pais.text,
+                                ciudad = if (ciudad.text.isBlank()) null else ciudad.text,
+                                anio = anio.text.toIntOrNull() ?: 0,
+                                imagePath = chapa.imagePath,
+                                colorPrimario = colorPrimarioSeleccionado ?: "",
+                                colorSecundario1 = if (tieneSecundarios) colorSec1 else null,
+                                colorSecundario2 = if (tieneSecundarios) colorSec2 else null,
+                                estadoForma = selectedForma,
+                                estadoRayones = selectedRayones,
+                                estadoMarcas = selectedMarcas,
+                                estadoOxido = selectedOxido,
+                                estadoPercent = estadoPercentCalc,
+                                procedencia = procedencia,
+                                metodoObtencion = if (procedencia != "") metodoObtencion else null,
+                                donante = if (procedencia == "Regalada") donante.text else null,
+                                paisObtencion = if (procedencia != "") paisObtencion.text else null,
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                            )
+
+                            val uriAEnviarAlViewModel = if (hayNuevaImagen) finalImageUri else null
+
+                            // 3. LA CORRUTINA: Aquí es donde ocurre la espera
+                            coroutineScope.launch {
+                                try {
+                                    // LLAMADA SUSPENDIDA: El código se detiene aquí hasta que Supabase responda OK
+                                    viewModel.updateChapaEnSupabase(
+                                        context,
+                                        chapa,
+                                        actualizada,
+                                        uriAEnviarAlViewModel
+                                    )
+
+                                    // 4. SOLO CUANDO TERMINA lo anterior, ejecutamos el onSave y cerramos
+                                    // Esto garantiza que la lista se refresque con los datos ya subidos
+                                    onSave(actualizada, finalImageUri)
+
+                                    // Pequeño delay opcional para asegurar que la UI respire antes de volver
+                                    //delay(300)
+
+                                    navController.popBackStack()
+
+                                } catch (e: Exception) {
+                                    // Si algo falla, liberamos el botón para que el usuario pueda reintentar
+                                    isSaving = false
+                                    Toast.makeText(context, "Error al guardar: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    },
+                    enabled = !isSaving // El botón se deshabilita mientras guarda
+                ) {
+                    if (isSaving) {
+                        // Mientras isSaving sea true, se verá esto:
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        Text("Guardar")
+                    }
+                }
             }
         }
     }

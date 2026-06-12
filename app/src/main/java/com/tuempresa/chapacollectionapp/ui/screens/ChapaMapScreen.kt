@@ -1,5 +1,6 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
+//import androidx.activity.result.launch
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -32,9 +33,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.tuempresa.chapacollectionapp.components.descargarBitmap
+import kotlinx.coroutines.launch
 
 @Composable
 fun ChapaMapScreen(viewModel: ChapaViewModel) {
@@ -44,6 +48,9 @@ fun ChapaMapScreen(viewModel: ChapaViewModel) {
     // Estado para la chapa que el usuario pulsa en el mapa
     var chapaSeleccionada by remember { mutableStateOf<Chapa?>(null) }
     var chapasEnCluster by remember { mutableStateOf<List<Chapa>>(emptyList()) }
+
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current // Asegúrate de tener el context a mano
 
 
     // Estado para controlar si la leyenda está expandida
@@ -111,8 +118,16 @@ fun ChapaMapScreen(viewModel: ChapaViewModel) {
                         }
                         map.setStyle(styleUrl) { style ->
                             // ... tu lógica de idioma ...
-                            actualizarMarcadores(map, style, chapas)
+                            //actualizarMarcadores(context, map, style, chapas)
                         }
+                    }
+                }
+            },
+            update = { mapView ->
+                // El bloque update se ejecuta cuando cambian las dependencias (como las chapas)
+                mapInstance?.getStyle { style ->
+                    coroutineScope.launch {
+                        actualizarMarcadores(context, mapInstance!!, style, chapas)
                     }
                 }
             }
@@ -314,7 +329,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel) {
     }
 }
 
-private fun actualizarMarcadores(map: MapLibreMap, style: Style, chapas: List<Chapa>) {
+private suspend fun actualizarMarcadores(context: android.content.Context, map: MapLibreMap, style: Style, chapas: List<Chapa>) {
     val sourceId = "chapas-source"
     val colorAzul = android.graphics.Color.parseColor("#2196F3")
 
@@ -350,8 +365,19 @@ private fun actualizarMarcadores(map: MapLibreMap, style: Style, chapas: List<Ch
                 }
                 features.add(feature)
 
-                if (!chapa.imagePath.isNullOrEmpty() && style.getImage("img_${chapa.id}") == null) {
+                /*if (!chapa.imagePath.isNullOrEmpty() && style.getImage("img_${chapa.id}") == null) {
                     val bitmap = android.graphics.BitmapFactory.decodeFile(chapa.imagePath)
+                    bitmap?.let {
+                        val scaled = android.graphics.Bitmap.createScaledBitmap(it, 150, 150, false)
+                        style.addImage("img_${chapa.id}", scaled)
+                    }
+                }*/
+
+                // --- ESTE ES EL CAMBIO CLAVE ---
+                if (!chapa.imagePath.isNullOrEmpty() && style.getImage("img_${chapa.id}") == null) {
+                    // Descargamos la imagen de forma asíncrona usando Coil
+                    val bitmap = descargarBitmap(context, chapa.imagePath)
+
                     bitmap?.let {
                         val scaled = android.graphics.Bitmap.createScaledBitmap(it, 150, 150, false)
                         style.addImage("img_${chapa.id}", scaled)

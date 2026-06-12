@@ -1,5 +1,7 @@
 package com.tuempresa.chapacollectionapp.ui.screens
 
+//import androidx.activity.result.launch
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -24,6 +26,8 @@ import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.rememberDismissState
 
 import androidx.compose.runtime.*
@@ -62,7 +66,17 @@ import java.io.File
 
 // Material3
 import androidx.compose.material3.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.sp
+import androidx.core.text.color
+import coil.compose.AsyncImage
+import com.tuempresa.chapacollectionapp.ui.components.ChapaIcon
+import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
+import kotlin.text.lowercase
+import kotlin.text.replace
+import kotlin.text.toIntOrNull
 
 // Fin de imports
 
@@ -145,8 +159,12 @@ fun ChapaOutline(
 
 @OptIn(ExperimentalMaterialApi::class, ExperimentalFoundationApi::class)
 @Composable
-fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController) {
-    val chapas by viewModel.allChapas.observeAsState(emptyList())
+fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, navController: NavHostController, onLogout: () -> Unit) {
+
+    var showMenu by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    //val chapas by viewModel.allChapas.observeAsState(emptyList())
+    val chapas by viewModel.chapasSupabase
 
     val categoriasDisponibles = listOf("Nombre", "Pais")
     var categoriaSeleccionada by remember { mutableStateOf<String?>(null) }
@@ -164,7 +182,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
     viewModel.cargarPreferenciaVista(context)
 
     // Aplicar filtro si hay nombre seleccionado
-    val chapasFiltradas = chapas.filter {
+    /*val chapasFiltradas = chapas.filter {
         when (categoriaSeleccionada) {
             "Nombre" -> it.nombre in valoresSeleccionados || valoresSeleccionados.isEmpty()
             "Pais" -> it.pais in valoresSeleccionados || valoresSeleccionados.isEmpty()
@@ -172,19 +190,55 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         }
     }.sortedBy { it.nombre.lowercase() }
 
+     */
+
+    val chapasFiltradas = chapas.filter {
+        when (categoriaSeleccionada) {
+            "Nombre" -> it.nombre in valoresSeleccionados || valoresSeleccionados.isEmpty()
+            "Pais" -> it.pais in valoresSeleccionados || valoresSeleccionados.isEmpty()
+            else -> true
+        }
+    }.let { lista ->
+        // APLICAR ORDENACIÓN SEGÚN EL CRITERIO
+        when (viewModel.criterioOrden) {
+            "Nombre" -> lista.sortedBy { it.nombre.lowercase() }
+            "Pais" -> lista.sortedBy { it.pais.lowercase() }
+            "Color" -> lista.sortedBy { it.colorPrimario.lowercase() }
+            "Estado" -> lista.sortedByDescending {
+                // Extraer número del porcentaje (ej: "90%" -> 90)
+                it.estadoPercent ?: 0
+            }
+            "Año" -> lista.sortedByDescending { it.anio } // Más reciente a más antiguo
+            else -> lista.sortedBy { it.nombre.lowercase() }
+        }
+    }
+
     val valoresDisponibles = when (categoriaSeleccionada) {
         "Nombre" -> chapas.map { it.nombre }.distinct().sorted()
         "Pais" -> chapas.map { it.pais }.distinct().sorted()
         else -> emptyList()
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.cargarChapasDeSupabase()
+        viewModel.cargarPreferenciaVista(context)
+    }
+
     // Mostrar pantalla de edición si hay una chapa seleccionada
-    chapaAEditar.value?.let { chapa ->
+    /*chapaAEditar.value?.let { chapaOriginal -> // Renombramos a chapaOriginal para mayor claridad
         EditChapaScreen(
-            chapa = chapa,
-            chapaId = chapa.id,
-            onSave = {
-                viewModel.updateChapa(it)
+            chapa = chapaOriginal,
+            chapaId = chapaOriginal.id.toString(),
+            onSave = { chapaEditada, uriDeImagen ->
+                // AHORA PASAMOS LOS 4 PARÁMETROS:
+                coroutineScope.launch {
+                    viewModel.updateChapaEnSupabase(
+                        context = context,
+                        chapaOriginal = chapaOriginal,
+                        chapaEditada = chapaEditada,
+                        nuevaImageUri = uriDeImagen
+                    )
+                }
                 chapaAEditar.value = null
             },
             onCancel = { chapaAEditar.value = null },
@@ -192,12 +246,35 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
             viewModel = viewModel
         )
         return
+    }*/
+
+    // Mostrar pantalla de edición si hay una chapa seleccionada
+    chapaAEditar.value?.let { chapaOriginal ->
+        EditChapaScreen(
+            chapa = chapaOriginal,
+            chapaId = chapaOriginal.id.toString(),
+            onSave = { chapaEditada, uriDeImagen ->
+                // --- ELIMINAMOS LA LLAMADA AL VIEWMODEL DE AQUÍ ---
+                // Ya no hace falta el coroutineScope.launch { viewModel.updateChapaEnSupabase(...) }
+                // porque el botón "Guardar" de EditChapaScreen ya lo hizo.
+
+                chapaAEditar.value = null // Solo cerramos el editor
+            },
+            onCancel = { chapaAEditar.value = null },
+            navController = navController,
+            viewModel = viewModel
+        )
+        return // O simplemente return según tu estructura
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) { detectTapGestures(onTap = { chapasEnEdicion.value = emptySet() }) }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                    chapasEnEdicion.value = emptySet()
+                })
+            }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
@@ -246,6 +323,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 }
 
                 // Contador centrado por encima del Row (overlay estable)
+                /*
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -269,6 +347,148 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                             color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
                         )
                     }
+                }*/
+
+                // Contador centrado por encima del Row (overlay estable)
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .zIndex(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
+
+                    // Envolvemos el contador en un Box clickable
+                    /*
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clickable { showMenu = true }, // Al pulsar, activamos el menú
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ChapaOutline(
+                            modifier = Modifier.fillMaxSize(),
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
+                            strokeWidthDp = 1.dp,
+                            teeth = 16
+                        )
+
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                        )
+                     */
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp) // Tamaño del botón
+                            .clickable { showMenu = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
+                        val colorChapa = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+
+                        // AQUÍ USAS EL NUEVO COMPONENTE
+                        ChapaIcon(
+                            modifier = Modifier.fillMaxSize(),
+                            color = colorChapa,
+                            teeth = 15
+                        )
+                        /*
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colorChapa
+                        )
+                         */
+
+                        Text(
+                            text = chapasFiltradas.size.toString(),
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                fontWeight = FontWeight.ExtraBold, // Un poco más de peso para que resalte en el centro
+                                fontSize = 16.sp
+                            ),
+                            color = colorChapa
+                        )
+
+                        // --- EL POP-UP (DropdownMenu) ---
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false } // Se cierra al pulsar fuera
+                        ) {
+                            Text(
+                                text = "Usuario: ${authViewModel.currentUser?.email ?: "Desconocido"}",
+                                modifier = Modifier.padding(16.dp, 8.dp),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.Gray
+                            )
+                            Divider()
+                            DropdownMenuItem(
+                                text = {
+                                    Text(if (viewModel.vistaCuadricula) "Vista actual: Cuadrícula" else "Vista actual: Lista")
+                                },
+                                onClick = {
+                                    // Al pulsar, cambiamos tanto la vista actual como la guardada
+                                    viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (viewModel.vistaCuadricula) Icons.Default.GridView else Icons.AutoMirrored.Filled.List,
+                                        contentDescription = null
+                                    )
+                                },
+                                trailingIcon = {
+                                    // Indicador visual de qué está seleccionado
+                                    Switch(
+                                        checked = viewModel.vistaCuadricula,
+                                        onCheckedChange = { viewModel.setVistaCuadricula(context, it) }
+                                    )
+                                }
+                            )
+
+                            Divider()
+                            Text(
+                                text = "Ordenar por:",
+                                modifier = Modifier.padding(16.dp, 4.dp),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+
+                            val opcionesOrden = listOf("Nombre", "Pais", "Color", "Estado", "Año")
+
+                            opcionesOrden.forEach { opcion ->
+                                DropdownMenuItem(
+                                    text = { Text(opcion) },
+                                    onClick = {
+                                        viewModel.guardarCriterioOrden(context, opcion)
+                                        // No cerramos el menú para que pueda cambiar varios ajustes
+                                    },
+                                    leadingIcon = {
+                                        // Icono de check si es la opción seleccionada
+                                        if (viewModel.criterioOrden == opcion) {
+                                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Green)
+                                        } else {
+                                            Spacer(modifier = Modifier.size(24.dp))
+                                        }
+                                    }
+                                )
+                            }
+
+                            Divider()
+                            DropdownMenuItem(
+                                text = { Text("Cerrar Sesión") },
+                                onClick = {
+                                    showMenu = false
+                                    authViewModel.signOut() // 1. Borra sesión en Supabase
+                                    onLogout()              // 2. Ejecuta el salto al Login en el MainActivity
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.ExitToApp, contentDescription = null)
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -282,13 +502,14 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = chapasFiltradas, key = { it.id }) { chapa ->
+                    items(items = chapasFiltradas, key = { it.id ?: it.hashCode() }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
                             .clickable { imagenSeleccionada = chapa.imagePath }
                         ) {
-                            Image(
-                                painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
+                            AsyncImage(
+                                //painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
+                                model = chapa.imagePath,
                                 contentDescription = "Imagen de la chapa",
                                 // 1. Usamos Fit para ver el borde original de la imagen sin estirarlo
                                 contentScale = ContentScale.Fit,
@@ -301,7 +522,10 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                             Box(modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .padding(6.dp)
-                                .background(MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(6.dp))
+                                .background(
+                                    MaterialTheme.colorScheme.surface,
+                                    shape = RoundedCornerShape(6.dp)
+                                )
                                 .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
@@ -320,7 +544,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                 LazyColumn {
                     items(
                         items = chapasFiltradas,
-                        key = { it.id } // Usar 'key' es crucial para animaciones correctas
+                        key = { it.id ?: it.hashCode() } // Usar 'key' es crucial para animaciones correctas
                     ) { chapa ->
                         val dismissState = rememberDismissState(
                             confirmStateChange = {
@@ -366,7 +590,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                                     contentAlignment = if (direction == DismissDirection.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                                 ) {
                                     icon?.let {
-                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier.padding(horizontal = 16.dp).size(24.dp))
+                                        Icon(imageVector = it, contentDescription = null, modifier = Modifier
+                                            .padding(horizontal = 16.dp)
+                                            .size(24.dp))
                                     }
                                 }
                             },
@@ -397,7 +623,8 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
                         text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
                         confirmButton = {
                             TextButton(onClick = {
-                                viewModel.deleteChapa(chapaAEliminar!!)
+                                //viewModel.deleteChapa(chapaAEliminar!!)
+                                viewModel.deleteChapaSupabase(chapaAEliminar!!)
                                 mostrarConfirmacion = false
                                 chapaAEliminar = null
                             }) { Text("Eliminar") }
@@ -416,6 +643,13 @@ fun ChapaListScreen(viewModel: ChapaViewModel, navController: NavHostController)
         }
 
         // Diálogo de imagen ampliada
-        ImageDialog(imageUri = null, imagePath = imagenSeleccionada, onDismiss = { imagenSeleccionada = null })
+        //ImageDialog(imageUri = null, imagePath = imagenSeleccionada, onDismiss = { imagenSeleccionada = null })
+        imagenSeleccionada?.let { url ->
+            ImageDialog(
+                imageUrl = url,
+                onDismiss = { imagenSeleccionada = null }
+            )
+        }
     }
+
 }

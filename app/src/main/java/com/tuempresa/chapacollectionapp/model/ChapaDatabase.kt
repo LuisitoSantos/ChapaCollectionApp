@@ -1,4 +1,4 @@
-package com.tuempresa.chapacollectionapp.model
+/*package com.tuempresa.chapacollectionapp.model
 
 import android.content.Context
 import androidx.room.Database
@@ -29,3 +29,4 @@ abstract class ChapaDatabase : RoomDatabase() {
         }
     }
 }
+*/

@@ -9,199 +9,145 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.*
 import com.tuempresa.chapacollectionapp.data.Chapa
-import com.tuempresa.chapacollectionapp.repository.ChapaRepository
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import java.io.File
-import java.io.FileOutputStream
-import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.runtime.State
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.lifecycle.asLiveData
 import com.tuempresa.chapacollectionapp.utils.GeoRepository
+import coil.ImageLoader
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import com.tuempresa.chapacollectionapp.components.SupabaseService
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.MutableStateFlow
 
 
-class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
-    // 1. Repositorio de la Base de Datos Room
-    //private val repository: ChapaRepository
+class ChapaViewModel(
+    // Inyectamos el servicio de Supabase.
+    // Si no usas Inyección de Dependencias (Hilt), lo inicializamos por defecto:
+    private val supabaseService: SupabaseService = SupabaseService()
+) : ViewModel() {
 
-    // 2. Repositorio de Coordenadas (GeoNames)
+    private var isUpdating = false
+
+    var criterioOrden by mutableStateOf("Nombre")
+
+    // El repositorio de coordenadas se queda como propiedad de la clase
     private var geoRepository: GeoRepository? = null
 
+    // Esta función la sigues necesitando para inicializar el GPS/Mapas con el contexto de la App
     fun inicializarGeo(context: android.content.Context) {
         if (geoRepository == null) {
             geoRepository = GeoRepository(context)
         }
     }
 
-    private val _allChapas = MutableLiveData<List<Chapa>>()
+    // --- ESTADOS DE LA UI ---
+    private val _allChapas = MutableLiveData<List<Chapa>>(emptyList())
     val allChapas: LiveData<List<Chapa>> get() = _allChapas
-    // En tu ChapaViewModel.kt
+
+    // Para Compose
+    private val _chapasSupabase = mutableStateOf<List<Chapa>>(emptyList())
+    val chapasSupabase: State<List<Chapa>> = _chapasSupabase
+
     var resultadosBusqueda by mutableStateOf<List<Chapa>>(emptyList())
-
     var estaBuscando by mutableStateOf(false)
-
     var vistaCuadricula by mutableStateOf(false)
         private set
 
+    init {
+        cargarChapasDeSupabase()
+    }
+
     // Obtener listas únicas de la base de datos para sugerencias
-    val sugerenciasDonantes: LiveData<List<String>> = repository.getUniqueDonantes().asLiveData()
+    //val sugerenciasDonantes: LiveData<List<String>> = repository.getUniqueDonantes().asLiveData()
+
+    // Sustituye las líneas de sugerencias por estas:
+    val sugerenciasPaises: LiveData<List<String>> = allChapas.map { lista ->
+        lista.map { it.pais }.distinct().sorted()
+    }
+
+    val sugerenciasCiudades: LiveData<List<String>> = allChapas.map { lista ->
+        lista.mapNotNull { it.ciudad }.distinct().sorted()
+    }
+
+    val sugerenciasDonantes: LiveData<List<String>> = allChapas.map { lista ->
+        lista.mapNotNull { it.donante }.distinct().sorted()
+    }
+
+
 
     // Creamos una variable para saber si ya hemos cargado la preferencia
     private var preferenciaCargada = false
 
-    init {
-        loadChapas()
+
+    fun getChapaById(id: String): LiveData<Chapa?> {
+        val result = MutableLiveData<Chapa?>()
+        // Convertimos el id (String) a Long para poder comparar
+        val idLong = id.toLongOrNull()
+
+        // Buscamos en la lista que ya tenemos en memoria
+        val chapa = allChapas.value?.find { it.id == idLong }
+
+        result.value = chapa
+        return result
     }
-
-    fun loadChapas() {
-        viewModelScope.launch {
-            repository.getAllChapas().collect { lista ->
-                _allChapas.postValue(lista)
-            }
-        }
-    }
-
-    fun insertChapa(
-        context: Context,
-        name: String,
-        pais: String,
-        ciudad: String? = null,
-        imageUri: Uri?,
-        anio: Int? = null,
-        colorPrimario: String = "",
-        colorSecundario1: String? = null,
-        colorSecundario2: String? = null,
-        estadoForma: String? = null,
-        estadoRayones: String? = null,
-        estadoMarcas: String? = null,
-        estadoOxido: String? = null,
-        estadoPercent: Int? = null,
-        procedencia: String? = null,
-        metodoObtencion: String? = null,
-        donante: String? = null,
-        paisObtencion: String? = null,
-        ciudadObtencion: String? = null
-    ) {
-        if(imageUri != null){
-            // 1. Buscamos las coordenadas antes de insertar
-            val coords = geoRepository?.getCoordinates(pais, ciudad)
-
-            val imagePath = copyImageToInternalStorage(context, imageUri)
-            val chapa = Chapa(
-                nombre = name,
-                pais = pais,
-                ciudad = ciudad,
-                imagePath = imagePath,
-                anio = anio,
-                colorPrimario = colorPrimario,
-                colorSecundario1 = colorSecundario1,
-                colorSecundario2 = colorSecundario2,
-                estadoForma = estadoForma,
-                estadoRayones = estadoRayones,
-                estadoMarcas = estadoMarcas,
-                estadoOxido = estadoOxido,
-                estadoPercent = estadoPercent,
-                latitud = coords?.first ?: 0.0,
-                longitud = coords?.second ?: 0.0,
-                procedencia = procedencia,
-                metodoObtencion = metodoObtencion,
-                donante = donante,
-                paisObtencion = paisObtencion,
-                ciudadObtencion = ciudadObtencion
-            )
-            viewModelScope.launch {
-                repository.insert(chapa)
-                loadChapas() // Actualiza la lista
-            }
-        }
-    }
-
-    fun deleteChapa(chapa: Chapa) {
-        viewModelScope.launch {
-            repository.delete(chapa)
-            //loadChapas()
-        }
-    }
-
-    fun updateChapa(chapa: Chapa) {
-        viewModelScope.launch {
-            // Buscamos coordenadas nuevas usando el GeoRepository
-            val coords = geoRepository?.getCoordinates(chapa.pais, chapa.ciudad)
-
-            // Creamos la chapa definitiva con las coordenadas encontradas
-            val chapaFinal = chapa.copy(
-                latitud = coords?.first ?: chapa.latitud,
-                longitud = coords?.second ?: chapa.longitud
-            )
-            repository.update(chapaFinal)
-            loadChapas()
-        }
-    }
-
-    fun getChapaById(id: Int): LiveData<Chapa?> {
-        return repository.getChapaById(id).asLiveData()
-    }
-
-    companion object {
-        fun copyImageToInternalStorage(context: Context, uri: Uri): String {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            val fileName = "chapa_${System.currentTimeMillis()}.jpg"
-            val file = File(context.filesDir, fileName)
-            val outputStream = FileOutputStream(file)
-            inputStream?.copyTo(outputStream)
-            inputStream?.close()
-            outputStream.close()
-            return file.absolutePath
-        }
-    }
-
-
 
     fun buscarCoincidencias(bitmapReferencia: Bitmap?, contexto: Context, umbral: Float) {
-        if (bitmapReferencia == null) {
-            Log.e("BUSQUEDA", "El bitmap de referencia es NULO")
-            return
-        }
+        if (bitmapReferencia == null) return
         resultadosBusqueda = emptyList()
 
         viewModelScope.launch(Dispatchers.Default) {
             estaBuscando = true
             try {
-                val todasLasChapas = repository.getAllChapas().first()
-                Log.d("BUSQUEDA", "Total de chapas en BD: ${todasLasChapas.size}")
+                // 1. Obtenemos todas las chapas de Supabase (ya lo hace loadChapas, pero aquí nos aseguramos)
+                val todasLasChapas = allChapas.value ?: emptyList()
+                val imageLoader = ImageLoader(contexto)
 
-                val encontradas = todasLasChapas.map { chapa ->
-                    val file = File(chapa.imagePath)
-                    val bitmapChapa = if (file.exists()) {
-                        BitmapFactory.decodeFile(file.absolutePath)
-                    } else null
-
-                    if (bitmapChapa == null) {
-                        Log.e("BUSQUEDA", "No se pudo cargar imagen de: ${chapa.nombre} en ruta: ${chapa.imagePath}")
-                    }
-
-                    val porcentaje = if (bitmapChapa != null) {
-                        calcularSimilitud(bitmapReferencia, bitmapChapa)
-                    } else 0f
-
-                    Log.d("BUSQUEDA", "Comparando con: ${chapa.nombre} - Similitud: $porcentaje%")
-                    Pair(chapa, porcentaje)
+                // 2. Procesamos en paralelo para ir rápido
+                val encontradas = todasLasChapas.chunked(5).flatMap { grupo ->
+                    grupo.map { chapa ->
+                        async {
+                            val bitmapChapa = downloadBitmap(contexto, imageLoader, chapa.imagePath)
+                            val porcentaje = if (bitmapChapa != null) {
+                                calcularSimilitud(bitmapReferencia, bitmapChapa)
+                            } else 0f
+                            Pair(chapa, porcentaje)
+                        }
+                    }.awaitAll()
                 }
-                    .filter { it.second >= umbral } // BAJA EL UMBRAL AL 20% TEMPORALMENTE para ver si sale algo
+                    .filter { it.second >= umbral }
                     .sortedByDescending { it.second }
                     .map { it.first }
 
                 withContext(Dispatchers.Main) {
                     resultadosBusqueda = encontradas
                     estaBuscando = false
-                    Log.d("BUSQUEDA", "Busqueda finalizada. Encontradas: ${encontradas.size}")
                 }
             } catch (e: Exception) {
-                Log.e("BUSQUEDA", "Error critico: ${e.message}")
+                Log.e("BUSQUEDA", "Error: ${e.message}")
                 withContext(Dispatchers.Main) { estaBuscando = false }
             }
+        }
+    }
+
+    // Función auxiliar para descargar la imagen a memoria sin guardar archivo
+    private suspend fun downloadBitmap(context: Context, loader: ImageLoader, url: String?): Bitmap? {
+        if (url.isNullOrEmpty()) return null
+        return try {
+            val request = ImageRequest.Builder(context)
+                .data(url)
+                .allowHardware(false) // Necesario para poder manipular los píxeles después
+                .build()
+
+            val result = loader.execute(request)
+            if (result is SuccessResult) {
+                (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap
+            } else null
+        } catch (e: Exception) {
+            null
         }
     }
 
@@ -272,8 +218,24 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         if (!preferenciaCargada) {
             val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
             vistaCuadricula = prefs.getBoolean("is_grid", false)
+            // Cargamos también el orden
+            criterioOrden = prefs.getString("sort_criteria", "Nombre") ?: "Nombre"
             preferenciaCargada = true
         }
+    }
+
+    fun guardarCriterioOrden(context: Context, nuevoCriterio: String) {
+        criterioOrden = nuevoCriterio
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("sort_criteria", nuevoCriterio).apply()
+    }
+
+    // 2. Modifica esta para que guarde el valor por defecto
+    fun guardarPreferenciaVista(context: Context, esCuadricula: Boolean) {
+        val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("is_grid", esCuadricula).apply()
+        // Opcional: si quieres que cambie la vista actual al instante:
+        vistaCuadricula = esCuadricula
     }
 
     fun setVistaCuadricula(context: Context, activa: Boolean) {
@@ -281,4 +243,209 @@ class ChapaViewModel(private val repository: ChapaRepository) : ViewModel() {
         val prefs = context.getSharedPreferences("prefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("is_grid", activa).apply()
     }
+
+    fun fetchChapas() {
+        viewModelScope.launch {
+            val lista = supabaseService.getChapas()
+            _chapasSupabase.value = lista
+            Log.d("ViewModel", "Chapas cargadas: ${lista.size}")
+        }
+    }
+
+    fun cargarChapasDeSupabase() {
+        viewModelScope.launch {
+            try {
+                val lista = supabaseService.getChapas()
+                // Actualizamos el estado de Compose (para la ChapaListScreen)
+                _chapasSupabase.value = lista
+                // Actualizamos el LiveData (para que los buscadores y sugerencias sigan funcionando)
+                _allChapas.postValue(lista)
+
+                Log.d("Supabase", "Chapas cargadas: ${lista.size}")
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error al cargar lista: ${e.message}")
+            }
+        }
+    }
+
+    fun saveInSupabase(context: Context, chapa: Chapa, imageUri: Uri?) {
+        viewModelScope.launch {
+            try {
+                // Buscamos coordenadas antes de enviar a Supabase para no perder esa función
+                val coords = geoRepository?.getCoordinates(chapa.pais, chapa.ciudad)
+                val chapaConCoords = chapa.copy(
+                    latitud = coords?.first ?: chapa.latitud,
+                    longitud = coords?.second ?: chapa.longitud
+                )
+
+                supabaseService.saveChapa(context, chapaConCoords, imageUri)
+
+                // IMPORTANTE: Refrescamos la lista para que la nueva chapa aparezca al volver
+                cargarChapasDeSupabase()
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error al guardar: ${e.message}")
+            }
+        }
+    }
+
+    fun deleteChapaSupabase(chapa: Chapa) {
+        viewModelScope.launch {
+            try {
+                // 1. Borrar la imagen del Storage si existe
+                if (!chapa.imagePath.isNullOrEmpty()) {
+                    supabaseService.deleteImageFromStorage(chapa.imagePath)
+                }
+
+                // 2. Borrar el registro de la base de datos
+                supabaseService.deleteChapa(chapa)
+
+                cargarChapasDeSupabase()
+                Log.d("Supabase", "Chapa e imagen eliminadas: ${chapa.nombre}")
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error al eliminar: ${e.message}")
+            }
+        }
+    }
+
+/*
+    fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Recalcular coordenadas por si cambió el país o ciudad
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // 2. Creamos el objeto con las nuevas coordenadas (la imagen la gestiona el servicio)
+                val chapaConCoords = chapaEditada.copy(
+                    latitud = coords?.first ?: chapaOriginal.latitud,
+                    longitud = coords?.second ?: chapaOriginal.longitud
+                )
+
+                // 3. LLAMADA AL SERVICIO (Pasando los 3 parámetros que pide tu SupabaseService)
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaConCoords,
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                // 4. Refrescar la lista
+                cargarChapasDeSupabase()
+
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error al actualizar en ViewModel: ${e.message}")
+            }
+        }
+    }
+ */
+
+/*
+    //ESTE ES EL QUE MAS O MENOS FUNCIONA
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        if (isUpdating) return // Si ya está actualizando, ignoramos la segunda llamada
+        isUpdating = true
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // 1. Obtener coordenadas si cambiaron
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // 2. Llamar al servicio (que ahora maneja el borrado y subida)
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaEditada.copy(
+                        latitud = coords?.first ?: chapaOriginal.latitud,
+                        longitud = coords?.second ?: chapaOriginal.longitud
+                    ),
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                cargarChapasDeSupabase()
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error: ${e.message}")
+            } finally {
+                isUpdating = false // Liberamos el bloqueo
+            }
+        }
+    }
+    */
+
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        // 1. Bloqueo de seguridad en el hilo principal
+        if (isUpdating) return
+        isUpdating = true
+
+        try {
+            // 2. Ejecutar la lógica pesada en IO
+            withContext(Dispatchers.IO) {
+                // Obtener coordenadas si cambiaron
+                val coords = geoRepository?.getCoordinates(chapaEditada.pais, chapaEditada.ciudad)
+
+                // Preparamos el objeto asegurando que pasamos el imagePath original
+                // para que el Service sepa qué borrar.
+                val chapaParaActualizar = chapaEditada.copy(
+                    imagePath = chapaOriginal.imagePath,
+                    latitud = coords?.first ?: chapaOriginal.latitud,
+                    longitud = coords?.second ?: chapaOriginal.longitud
+                )
+
+                // LLAMADA ÚNICA AL SERVICIO
+                supabaseService.updateChapa(
+                    context = context,
+                    chapa = chapaParaActualizar,
+                    nuevaImageUri = nuevaImageUri
+                )
+
+                // Refrescamos datos
+                val lista = supabaseService.getChapas()
+
+                withContext(Dispatchers.Main) {
+                    _chapasSupabase.value = lista
+                    _allChapas.value = lista
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Supabase", "Error: ${e.message}")
+        } finally {
+            // 3. Liberar el bloqueo al final
+            isUpdating = false
+        }
+    }
+
+
+/*
+    suspend fun updateChapaEnSupabase(context: Context, chapaOriginal: Chapa, chapaEditada: Chapa, nuevaImageUri: Uri?) {
+        withContext(Dispatchers.IO) {
+            try {
+                var urlFinal = chapaOriginal.imagePath
+
+                if (nuevaImageUri != null) {
+                    // SI HAY IMAGEN NUEVA:
+                    // Primero borramos lo que haya actualmente en Storage
+                    chapaOriginal.imagePath?.let { oldUrl ->
+                        if (oldUrl.contains("http")) { // Solo borrar si es una URL de internet
+                            supabaseService.deleteImageFromStorage(oldUrl)
+                        }
+                    }
+
+                    // Subimos la nueva (da igual si viene de cámara o galería)
+                    val newUrl = supabaseService.uploadImage(context, nuevaImageUri)
+                    if (newUrl != null) {
+                        urlFinal = newUrl
+                    }
+                }
+
+                // Actualizar la tabla en Supabase
+                val chapaConNuevaImagen = chapaEditada.copy(imagePath = urlFinal)
+                supabaseService.updateChapa(context, chapaConNuevaImagen, nuevaImageUri)
+
+                // RECARGA CRÍTICA:
+                // Después de actualizar, descargamos la lista de nuevo para que
+                // la próxima edición tenga la URL fresca.
+                cargarChapasDeSupabase()
+
+            } catch (e: Exception) {
+                Log.e("Supabase", "Error: ${e.message}")
+            }
+        }
+    } */
+
 }
