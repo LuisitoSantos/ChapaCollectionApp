@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -173,8 +174,12 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
 
     val chapaAEditar = remember { mutableStateOf<Chapa?>(null) }
     val chapasEnEdicion = remember { mutableStateOf(setOf<Int>()) }
+    var chapaAEliminar by remember { mutableStateOf<Chapa?>(null) }
+    var mostrarConfirmacion by remember { mutableStateOf(false) }
+    var chapaConMenu by remember { mutableStateOf<Chapa?>(null) }
 
     var imagenSeleccionada by remember { mutableStateOf<String?>(null) }
+    var chapaEnImagenAmpliada by remember { mutableStateOf<Chapa?>(null) }
 
     val vistaCuadricula = viewModel.vistaCuadricula
 
@@ -220,7 +225,6 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
     }
 
     LaunchedEffect(Unit) {
-        viewModel.cargarChapasDeSupabase()
         viewModel.cargarPreferenciaVista(context)
     }
 
@@ -247,25 +251,6 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
         )
         return
     }*/
-
-    // Mostrar pantalla de edición si hay una chapa seleccionada
-    chapaAEditar.value?.let { chapaOriginal ->
-        EditChapaScreen(
-            chapa = chapaOriginal,
-            chapaId = chapaOriginal.id.toString(),
-            onSave = { chapaEditada, uriDeImagen ->
-                // --- ELIMINAMOS LA LLAMADA AL VIEWMODEL DE AQUÍ ---
-                // Ya no hace falta el coroutineScope.launch { viewModel.updateChapaEnSupabase(...) }
-                // porque el botón "Guardar" de EditChapaScreen ya lo hizo.
-
-                chapaAEditar.value = null // Solo cerramos el editor
-            },
-            onCancel = { chapaAEditar.value = null },
-            navController = navController,
-            viewModel = viewModel
-        )
-        return // O simplemente return según tu estructura
-    }
 
     Box(
         modifier = Modifier
@@ -505,7 +490,13 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                     items(items = chapasFiltradas, key = { it.id ?: it.hashCode() }) { chapa ->
                         Box(modifier = Modifier
                             .aspectRatio(1f)
-                            .clickable { imagenSeleccionada = chapa.imagePath }
+                            .combinedClickable(
+                                onClick = {
+                                    chapaEnImagenAmpliada = chapa
+                                    imagenSeleccionada = chapa.imagePath
+                                },
+                                onLongClick = { chapaConMenu = chapa }
+                            )
                         ) {
                             AsyncImage(
                                 //painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
@@ -532,12 +523,33 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                                 val text = chapa.estadoPercent?.let { "$it%" } ?: "ND"
                                 Text(text = text, style = MaterialTheme.typography.bodySmall)
                             }
+
+                            DropdownMenu(
+                                expanded = chapaConMenu == chapa,
+                                onDismissRequest = { chapaConMenu = null }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Editar") },
+                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                                    onClick = {
+                                        chapaConMenu = null
+                                        chapaAEditar.value = chapa
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Eliminar") },
+                                    leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                                    onClick = {
+                                        chapaConMenu = null
+                                        chapaAEliminar = chapa
+                                        mostrarConfirmacion = true
+                                    }
+                                )
+                            }
                         }
                     }
                 }
             } else {
-                var mostrarConfirmacion by remember { mutableStateOf(false) }
-                var chapaAEliminar by remember { mutableStateOf<Chapa?>(null) }
                 val onEditar: (Chapa) -> Unit = { chapa -> chapaAEditar.value = chapa }
                 val onEliminar: (Chapa) -> Unit = { chapa -> chapaAEliminar = chapa; mostrarConfirmacion = true }
 
@@ -604,42 +616,52 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                                     onEliminar = { onEliminar(chapa) },
                                     onLongPress = {},
                                     onTap = {},
-                                    onImageClick = { imagenSeleccionada = chapa.imagePath }
+                                    onImageClick = {
+                                        chapaEnImagenAmpliada = chapa
+                                        imagenSeleccionada = chapa.imagePath
+                                    }
                                 )
                             }
                         )
                     }
                 }
-
-
-                if (mostrarConfirmacion && chapaAEliminar != null) {
-                    AlertDialog(
-                        onDismissRequest = {
-                            // Al cancelar tocando fuera, simplemente cierra el diálogo
-                            mostrarConfirmacion = false
-                            chapaAEliminar = null
-                        },
-                        title = { Text("Confirmar eliminación") },
-                        text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
-                        confirmButton = {
-                            TextButton(onClick = {
-                                //viewModel.deleteChapa(chapaAEliminar!!)
-                                viewModel.deleteChapaSupabase(chapaAEliminar!!)
-                                mostrarConfirmacion = false
-                                chapaAEliminar = null
-                            }) { Text("Eliminar") }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = {
-                                // Al cancelar, simplemente cierra el diálogo
-                                mostrarConfirmacion = false
-                                chapaAEliminar = null
-                            }) { Text("Cancelar") }
-                        }
-                    )
-                }
-
             }
+        }
+
+        if (mostrarConfirmacion && chapaAEliminar != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    mostrarConfirmacion = false
+                    chapaAEliminar = null
+                },
+                title = { Text("Confirmar eliminación") },
+                text = { Text("¿Estás seguro de que quieres eliminar esta chapa?") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        chapaAEliminar?.let { viewModel.deleteChapaSupabase(it) }
+                        mostrarConfirmacion = false
+                        chapaAEliminar = null
+                    }) { Text("Eliminar") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        mostrarConfirmacion = false
+                        chapaAEliminar = null
+                    }) { Text("Cancelar") }
+                }
+            )
+        }
+
+        // Mantener la lista compuesta por debajo evita volver a crear las tarjetas al cerrar edición.
+        chapaAEditar.value?.let { chapaOriginal ->
+            EditChapaScreen(
+                chapa = chapaOriginal,
+                chapaId = chapaOriginal.id.toString(),
+                onSave = { _, _ -> chapaAEditar.value = null },
+                onCancel = { chapaAEditar.value = null },
+                navController = navController,
+                viewModel = viewModel
+            )
         }
 
         // Diálogo de imagen ampliada
@@ -647,7 +669,25 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
         imagenSeleccionada?.let { url ->
             ImageDialog(
                 imageUrl = url,
-                onDismiss = { imagenSeleccionada = null }
+                onDismiss = {
+                    imagenSeleccionada = null
+                    chapaEnImagenAmpliada = null
+                },
+                onEdit = chapaEnImagenAmpliada?.let { chapa ->
+                    {
+                        imagenSeleccionada = null
+                        chapaEnImagenAmpliada = null
+                        chapaAEditar.value = chapa
+                    }
+                },
+                onDelete = chapaEnImagenAmpliada?.let { chapa ->
+                    {
+                        imagenSeleccionada = null
+                        chapaEnImagenAmpliada = null
+                        chapaAEliminar = chapa
+                        mostrarConfirmacion = true
+                    }
+                }
             )
         }
     }

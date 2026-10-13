@@ -6,6 +6,7 @@ import android.util.Log
 import java.io.FileOutputStream
 import kotlin.text.equals
 import java.util.Locale
+import java.text.Normalizer
 
 class GeoRepository(private val context: Context) {
     // Obtenemos la ruta correcta donde Android guarda las bases de datos
@@ -122,22 +123,31 @@ class GeoRepository(private val context: Context) {
     }
 
     private fun traducirPaisAIngles(nombrePais: String): String {
+        val normalizedName = normalizeCountryName(nombrePais)
+        if (normalizedName in setOf("turquia", "turkiye", "turkey")) return "Turkey"
+
         val locales = Locale.getAvailableLocales()
         for (locale in locales) {
             val nameInLocale = locale.getDisplayCountry(Locale("es")) // Intenta buscar el nombre en español
-            if (nameInLocale.equals(nombrePais, ignoreCase = true)) {
+            if (normalizeCountryName(nameInLocale) == normalizedName) {
                 val translated = locale.getDisplayCountry(Locale.ENGLISH)
                 return translated
             }
 
             // Segunda oportunidad: comparar con el nombre por defecto del sistema
-            if (locale.displayCountry.equals(nombrePais, ignoreCase = true)) {
+            if (normalizeCountryName(locale.displayCountry) == normalizedName) {
                 return locale.getDisplayCountry(Locale.ENGLISH)
             }
         }
         Log.w("GEO_DEBUG", "Traducción: No se encontró traducción para '$nombrePais', usando original.")
         return nombrePais
     }
+
+    private fun normalizeCountryName(value: String): String =
+        Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replace(Regex("\\p{Mn}+"), "")
+            .trim()
+            .lowercase(Locale.ROOT)
 
     // Añade esto a tu clase GeoRepository
     fun getCitySuggestions(query: String, paisEspañol: String): List<String> {

@@ -70,7 +70,7 @@ fun OverlayCuadradoConGuiaCircular(modifier: Modifier = Modifier) {
 
         // El mismo radio que usas para el recorte
         val density = this.density
-        val radius = (canvasWidth / 2.2f) - (1f * density / 2f) - 0.5f
+        val radius = (minOf(canvasWidth, canvasHeight) / 2f) - density
 
         // 1. Dibujar el fondo que tapa las esquinas (un rectángulo con un agujero circular)
         val path = androidx.compose.ui.graphics.Path().apply {

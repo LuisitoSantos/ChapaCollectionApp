@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
@@ -48,6 +49,7 @@ fun ChapaCard(
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -79,11 +81,12 @@ fun ChapaCard(
                     Image(
                         painter = rememberAsyncImagePainter(imageModel),
                         contentDescription = "Imagen de la chapa",
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(110.dp)
                             .padding(10.dp)
                             .clip(CircleShape)
-                            .border(3.dp, Color.Black, CircleShape)
+                            .border(2.dp, Color.Black, CircleShape)
                             //.clip(RoundedCornerShape(8.dp)) // recorta la imagen con esquinas redondeadas
                             //.border(3.dp, Color.Black, RoundedCornerShape(8.dp)) // borde con mismas esquinas
                             //.background(Color.Black.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp))

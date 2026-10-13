@@ -41,10 +41,11 @@ import com.tuempresa.chapacollectionapp.components.descargarBitmap
 import kotlinx.coroutines.launch
 
 @Composable
-fun ChapaMapScreen(viewModel: ChapaViewModel) {
+fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
     val chapas by viewModel.allChapas.observeAsState(emptyList())
     val styleUrl = "https://api.maptiler.com/maps/basic-v2/style.json?key=jvSAqJlbbKZIBqsyrioy"
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var mapViewStarted by remember { mutableStateOf(true) }
     // Estado para la chapa que el usuario pulsa en el mapa
     var chapaSeleccionada by remember { mutableStateOf<Chapa?>(null) }
     var chapasEnCluster by remember { mutableStateOf<List<Chapa>>(emptyList()) }
@@ -71,6 +72,10 @@ fun ChapaMapScreen(viewModel: ChapaViewModel) {
             factory = { context ->
                 MapLibre.getInstance(context)
                 MapView(context).apply {
+                    visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                    onCreate(null)
+                    onStart()
+                    onResume()
                     getMapAsync { map ->
                         mapInstance = map
 
@@ -124,12 +129,32 @@ fun ChapaMapScreen(viewModel: ChapaViewModel) {
                 }
             },
             update = { mapView ->
+                mapView.visibility = if (isVisible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+                if (isVisible && !mapViewStarted) {
+                    mapView.onStart()
+                    mapView.onResume()
+                    mapViewStarted = true
+                } else if (!isVisible && mapViewStarted) {
+                    mapView.onPause()
+                    mapView.onStop()
+                    mapViewStarted = false
+                }
+
                 // El bloque update se ejecuta cuando cambian las dependencias (como las chapas)
                 mapInstance?.getStyle { style ->
                     coroutineScope.launch {
                         actualizarMarcadores(context, mapInstance!!, style, chapas)
                     }
                 }
+            },
+            onRelease = { mapView ->
+                mapInstance = null
+                if (mapViewStarted) {
+                    mapView.onPause()
+                    mapView.onStop()
+                    mapViewStarted = false
+                }
+                mapView.onDestroy()
             }
         )
 

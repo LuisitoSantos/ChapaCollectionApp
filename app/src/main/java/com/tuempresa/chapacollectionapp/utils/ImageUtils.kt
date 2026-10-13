@@ -18,6 +18,17 @@ import java.io.File
 import java.io.FileOutputStream
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
+import java.net.URL
+
+private fun openImageInputStream(context: Context, uri: Uri) =
+    if (uri.scheme.equals("http", ignoreCase = true) || uri.scheme.equals("https", ignoreCase = true)) {
+        URL(uri.toString()).openConnection().apply {
+            connectTimeout = 10_000
+            readTimeout = 20_000
+        }.getInputStream()
+    } else {
+        context.contentResolver.openInputStream(uri)
+    }
 
 /**
  * Crea una URI segura para guardar una imagen capturada por la cámara.
@@ -51,7 +62,7 @@ fun recortarImagenVisibleDesdeUri(
     maskRadiusPx: Float? = null
 ): Uri? {
     try {
-        val inputStream = context.contentResolver.openInputStream(imageUri)
+        val inputStream = openImageInputStream(context, imageUri)
         var bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream?.close()
         if (bitmap == null) return null
@@ -63,7 +74,7 @@ fun recortarImagenVisibleDesdeUri(
         val originalHeight = bitmap.height.toFloat()
 
         // Calculamos el factor con el que la imagen original se ajusta al marco (ContentScale.Fit)
-        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+        val scaleToDisplay = frameSizePx / minOf(originalWidth, originalHeight)
 
         // Tamaño mostrado antes del zoom
         val displayedWidth = originalWidth * scaleToDisplay
@@ -157,7 +168,7 @@ fun recortarImagenVisibleDesdeUri(
     maskRadiusPx: Float? = null
 ): Uri? {
     try {
-        val inputStream = context.contentResolver.openInputStream(imageUri)
+        val inputStream = openImageInputStream(context, imageUri)
         var bitmap = BitmapFactory.decodeStream(inputStream)
         inputStream?.close()
         if (bitmap == null) return null
@@ -166,7 +177,7 @@ fun recortarImagenVisibleDesdeUri(
 
         val originalWidth = bitmap.width.toFloat()
         val originalHeight = bitmap.height.toFloat()
-        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+        val scaleToDisplay = frameSizePx / minOf(originalWidth, originalHeight)
 
         val displayedWidthZoom = originalWidth * scaleToDisplay * scale
         val displayedHeightZoom = originalHeight * scaleToDisplay * scale
@@ -192,7 +203,7 @@ fun recortarImagenVisibleDesdeUri(
         val cx = outSize / 2f
         val cy = outSize / 2f
         val density = context.resources.displayMetrics.density
-        val radius = maskRadiusPx ?: ((frameSizePx / 2.2f) - (1f * density / 2f) - 0.5f)
+        val radius = maskRadiusPx ?: (frameSizePx / 2f - density)
 
         // Aplicar máscara circular
         val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.BLACK }
@@ -240,7 +251,7 @@ fun recortarImagenVisibleDesdeBitmap(
         val originalHeight = bmp.height.toFloat()
 
         // Calculamos el factor con el que la imagen original se ajusta al marco (ContentScale.Fit)
-        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+        val scaleToDisplay = frameSizePx / minOf(originalWidth, originalHeight)
 
         // Tamaño mostrado antes del zoom
         val displayedWidth = originalWidth * scaleToDisplay
@@ -329,7 +340,7 @@ fun recortarImagenVisibleDesdeBitmap(
     try {
         val originalWidth = bitmap.width.toFloat()
         val originalHeight = bitmap.height.toFloat()
-        val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+        val scaleToDisplay = frameSizePx / minOf(originalWidth, originalHeight)
 
         val displayedWidthZoom = originalWidth * scaleToDisplay * scale
         val displayedHeightZoom = originalHeight * scaleToDisplay * scale
@@ -351,7 +362,7 @@ fun recortarImagenVisibleDesdeBitmap(
         val cx = outSize / 2f
         val cy = outSize / 2f
         val density = context.resources.displayMetrics.density
-        val radius = maskRadiusPx ?: ((frameSizePx / 2.2f) - (1f * density / 2f) - 0.5f)
+        val radius = maskRadiusPx ?: (frameSizePx / 2f - density)
 
         val maskPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = AndroidColor.BLACK }
         finalCanvas.drawCircle(cx, cy, radius, maskPaint)
@@ -384,7 +395,7 @@ fun recortarImagenVisibleDesdeBitmap(
 
 fun rotateBitmapIfRequired(context: Context, uri: Uri, bitmap: Bitmap): Bitmap {
     return try {
-        val inputStream = context.contentResolver.openInputStream(uri)
+        val inputStream = openImageInputStream(context, uri)
         val exif = inputStream?.let { ExifInterface(it) }
         inputStream?.close()
 

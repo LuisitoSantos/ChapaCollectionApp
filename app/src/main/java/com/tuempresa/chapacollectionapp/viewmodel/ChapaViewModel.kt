@@ -54,12 +54,12 @@ class ChapaViewModel(
 
     var resultadosBusqueda by mutableStateOf<List<Chapa>>(emptyList())
     var estaBuscando by mutableStateOf(false)
+    var initialChapasLoaded by mutableStateOf(false)
+        private set
+    var initialLoadingStartedAt by mutableStateOf(0L)
+        private set
     var vistaCuadricula by mutableStateOf(false)
         private set
-
-    init {
-        cargarChapasDeSupabase()
-    }
 
     // Obtener listas únicas de la base de datos para sugerencias
     //val sugerenciasDonantes: LiveData<List<String>> = repository.getUniqueDonantes().asLiveData()
@@ -252,7 +252,14 @@ class ChapaViewModel(
         }
     }
 
-    fun cargarChapasDeSupabase() {
+    fun cargarChapasDeSupabase(
+        showInitialLoading: Boolean = false,
+        loadingStartedAt: Long = android.os.SystemClock.elapsedRealtime()
+    ) {
+        if (showInitialLoading) {
+            initialLoadingStartedAt = loadingStartedAt
+            initialChapasLoaded = false
+        }
         viewModelScope.launch {
             try {
                 val lista = supabaseService.getChapas()
@@ -264,6 +271,8 @@ class ChapaViewModel(
                 Log.d("Supabase", "Chapas cargadas: ${lista.size}")
             } catch (e: Exception) {
                 Log.e("Supabase", "Error al cargar lista: ${e.message}")
+            } finally {
+                initialChapasLoaded = true
             }
         }
     }
