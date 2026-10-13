@@ -35,7 +35,12 @@ class SupabaseService {
             })
         }
         install(Storage)
-        install(Auth)
+        install(Auth) {
+            // Mantener la sesión entre aperturas y renovar el token al expirar.
+            autoLoadFromStorage = true
+            autoSaveToStorage = true
+            alwaysAutoRefresh = true
+        }
     }
 
     suspend fun saveChapa(context: Context, chapa: Chapa, imageUri: Uri?) = withContext(Dispatchers.IO) {
@@ -122,18 +127,11 @@ class SupabaseService {
         try {
             var chapaFinal = chapa
 
-            // 1. Si hay una imagen nueva
+            // Subimos primero para conservar la imagen anterior si falla la subida.
             if (nuevaImageUri != null) {
-                // Borramos la antigua primero (usamos la URL que ya venía en el objeto chapa)
-                chapa.imagePath?.let { oldUrl ->
-                    deleteImageFromStorage(oldUrl)
-                }
-
-                // Subimos la nueva
                 val newUrl = uploadImage(context, nuevaImageUri)
-                if (newUrl != null) {
-                    chapaFinal = chapa.copy(imagePath = newUrl)
-                }
+                    ?: throw IllegalStateException("No se pudo subir la imagen")
+                chapaFinal = chapa.copy(imagePath = newUrl)
             }
 
             // 2. ACTUALIZACIÓN CRÍTICA:
@@ -145,6 +143,9 @@ class SupabaseService {
                     eq("id", chapa.id ?: 0)
                     eq("user_id", client.auth.currentSessionOrNull()?.user?.id ?: "")
                 }
+            }
+            if (nuevaImageUri != null && chapa.imagePath != chapaFinal.imagePath) {
+                chapa.imagePath?.let { oldUrl -> deleteImageFromStorage(oldUrl) }
             }
             Log.d("Supabase", "Chapa con ID ${chapa.id} actualizada correctamente")
         } catch (e: Exception) {
@@ -182,13 +183,11 @@ class SupabaseService {
             // 1. Quitar TODO lo que haya después del "?" (parámetros de caché de Supabase)
             val urlSinParametros = imageUrl.split("?")[0].trim()
 
-            // 2. Extraer el nombre real del archivo
-            //val fileName = urlSinParametros.substringAfterLast("/")
+            // La ruta de Storage incluye el directorio de usuario y el nombre del objeto.
+            val marker = "/fotos_chapas/"
+            val fileName = urlSinParametros.substringAfter(marker, "")
 
-            val userId = client.auth.currentSessionOrNull()?.user?.id ?: "anon"
-            val fileName = "$userId/chapa_${System.currentTimeMillis()}.jpg"
-
-            if (fileName.isNotEmpty() && urlSinParametros.contains("supabase")) {
+            if (fileName.isNotBlank() && urlSinParametros.contains("supabase") && !fileName.contains("..")) {
                 Log.d("SupabaseStorage", "Intentando borrar archivo: $fileName")
 
                 // 3. Importante: Asegurar que se borra del bucket correcto

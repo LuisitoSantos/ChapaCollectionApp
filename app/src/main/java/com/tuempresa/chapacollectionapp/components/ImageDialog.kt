@@ -13,6 +13,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -82,7 +89,12 @@ fun ImageDialog(imageUri: Uri?, imagePath: String?, onDismiss: () -> Unit) {
  */
 
 @Composable
-fun ImageDialog(imageUrl: String, onDismiss: () -> Unit) {
+fun ImageDialog(
+    imageUrl: String,
+    onDismiss: () -> Unit,
+    onEdit: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
     Dialog(
         onDismissRequest = onDismiss,
         // Esto permite que el diálogo use todo el ancho posible sin márgenes forzados
@@ -105,6 +117,28 @@ fun ImageDialog(imageUrl: String, onDismiss: () -> Unit) {
                     .clip(CircleShape), // Mantenemos la forma circular de la chapa
                 contentScale = ContentScale.Fit
             )
+
+            if (onEdit != null || onDelete != null) {
+                Surface(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    shadowElevation = 4.dp
+                ) {
+                    Row {
+                        onEdit?.let { edit ->
+                            IconButton(onClick = edit) {
+                                Icon(Icons.Default.Edit, contentDescription = "Editar chapa")
+                            }
+                        }
+                        onDelete?.let { delete ->
+                            IconButton(onClick = delete) {
+                                Icon(Icons.Default.Delete, contentDescription = "Eliminar chapa")
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

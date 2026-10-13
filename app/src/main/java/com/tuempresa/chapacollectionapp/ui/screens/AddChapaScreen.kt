@@ -112,6 +112,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 // Requesters para cada campo que quieres auto-scrollear
     val bringNombreIntoView = remember { BringIntoViewRequester() }
     val bringPaisObtencionIntoView = remember { BringIntoViewRequester() }
+    val bringCiudadObtencionIntoView = remember { BringIntoViewRequester() }
 
 
     // Esto inicializa el repositorio de coordenadas sin cambiar la Factory
@@ -303,7 +304,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
             imageUriState.value?.let { uri ->
 
-                val frameSizeDp = 300.dp
+                val frameSizeDp = 240.dp
                 val density = LocalDensity.current
                 val frameSizePx = with(density) { frameSizeDp.toPx() }
 
@@ -312,8 +313,8 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 val originalWidth = decodedBitmap?.width?.toFloat() ?: 1f
                 val originalHeight = decodedBitmap?.height?.toFloat() ?: 1f
 
-                // Mismo cálculo que en recortarImagenVisibleDesdeUri: ContentScale.Fit -> la dimensión mayor ocupa frameSizePx
-                val scaleToDisplay = frameSizePx / maxOf(originalWidth, originalHeight)
+                // Coincide con ContentScale.Crop y con el recorte final: el lado menor llena el marco.
+                val scaleToDisplay = frameSizePx / minOf(originalWidth, originalHeight)
 
                 val displayedWidth = originalWidth * scaleToDisplay
                 val displayedHeight = originalHeight * scaleToDisplay
@@ -345,7 +346,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             val framePx = frameSizePx
                             val originalW = bmpNonNull.width.toFloat()
                             val originalH = bmpNonNull.height.toFloat()
-                            val scaleToDisplayLocal = framePx / maxOf(originalW, originalH)
+                            val scaleToDisplayLocal = framePx / minOf(originalW, originalH)
 
                             val displayedW = originalW * scaleToDisplayLocal * scale.value
                             val displayedH = originalH * scaleToDisplayLocal * scale.value
@@ -470,7 +471,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
             // Campo País: desplegable con búsqueda de países (Locale)
             val countryList = remember {
-                Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted()
+                (Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry } + listOf("Turquía", "Türkiye"))
+                    .distinct()
+                    .sorted()
             }
             var expandedCountry by remember { mutableStateOf(false) }
             val countrySuggestions = remember(pais.text) { countryList.filter { it.contains(pais.text, ignoreCase = true) } }
@@ -962,7 +965,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
 
                 // Campo País: desplegable con búsqueda de países (Locale)
                 val countryListObtencion = remember {
-                    Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted()
+                    (Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry } + listOf("Turquía", "Türkiye"))
+                        .distinct()
+                        .sorted()
                 }
                 var expandedCountryObtencion by remember { mutableStateOf(false) }
                 val countrySuggestionsObtencion = remember(paisObtencion.text) { countryListObtencion.filter { it.contains(paisObtencion.text, ignoreCase = true) } }
@@ -980,6 +985,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(paisFocusRequesterObtencion)
+                            .bringIntoViewRequester(bringPaisObtencionIntoView)
                             .onFocusChanged { fs ->
                                 if (!fs.isFocused){
                                     expandedCountryObtencion = false
@@ -1046,7 +1052,14 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         imeAction = ImeAction.Done, // <--- Forzamos que sea el último
                         onNext = { softwareKeyboardController?.hide()
                             focusManager.clearFocus()
-                        }
+                        },
+                        onFocus = {
+                            coroutineScope.launch {
+                                kotlinx.coroutines.delay(200)
+                                bringCiudadObtencionIntoView.bringIntoView()
+                            }
+                        },
+                        bringIntoViewRequester = bringCiudadObtencionIntoView
                     )
 
                     // Espacio para sugerencias de ciudades (si decides implementarlas luego)
@@ -1124,7 +1137,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 val densityForMask = LocalDensity.current.density
                 val guiaGrosorDpForMask = 1f
                 val guiaGrosorPxForMask = guiaGrosorDpForMask * densityForMask
-                val maskRadiusPxDefault = (frameSizePx / 2.2f) - (guiaGrosorPxForMask / 2f) - 0.5f
+                val maskRadiusPxDefault = (frameSizePx / 2f) - guiaGrosorPxForMask
 
                 Button(
                     onClick = {

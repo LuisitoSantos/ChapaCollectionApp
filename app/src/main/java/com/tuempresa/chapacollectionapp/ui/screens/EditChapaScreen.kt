@@ -10,12 +10,15 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -78,7 +81,7 @@ import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun EditChapaScreen(
     chapa: Chapa,
@@ -96,21 +99,21 @@ fun EditChapaScreen(
     val chapaState by viewModel.getChapaById(chapaId).observeAsState()
 
     // 2. Declaramos las variables de los campos (como las tienes ahora)
-    var nombre by remember { mutableStateOf(TextFieldValue("")) }
-    var pais by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudad by remember { mutableStateOf(TextFieldValue("")) }
-    var anio by remember { mutableStateOf(TextFieldValue("")) }
+    var nombre by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.nombre, TextRange(chapa.nombre.length))) }
+    var pais by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.pais, TextRange(chapa.pais.length))) }
+    var ciudad by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.ciudad.orEmpty(), TextRange(chapa.ciudad?.length ?: 0))) }
+    var anio by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.anio?.takeIf { it > 0 }?.toString().orEmpty())) }
 
     // Variables de estado (Dropdowns)
-    var selectedForma by remember { mutableStateOf("") }
-    var selectedRayones by remember { mutableStateOf("") }
-    var selectedMarcas by remember { mutableStateOf("") }
-    var selectedOxido by remember { mutableStateOf("") }
+    var selectedForma by remember(chapaId) { mutableStateOf(chapa.estadoForma.orEmpty()) }
+    var selectedRayones by remember(chapaId) { mutableStateOf(chapa.estadoRayones.orEmpty()) }
+    var selectedMarcas by remember(chapaId) { mutableStateOf(chapa.estadoMarcas.orEmpty()) }
+    var selectedOxido by remember(chapaId) { mutableStateOf(chapa.estadoOxido.orEmpty()) }
 
     // Colores (si los tienes)
-    var colorPrimarioSeleccionado by remember { mutableStateOf("") }
-    var colorSec1 by remember { mutableStateOf("") }
-    var colorSec2 by remember { mutableStateOf("") }
+    var colorPrimarioSeleccionado by remember(chapaId) { mutableStateOf(chapa.colorPrimario) }
+    var colorSec1 by remember(chapaId) { mutableStateOf(chapa.colorSecundario1.orEmpty()) }
+    var colorSec2 by remember(chapaId) { mutableStateOf(chapa.colorSecundario2.orEmpty()) }
     var tieneSecundarios by remember { mutableStateOf(!chapa.colorSecundario1.isNullOrBlank() || !chapa.colorSecundario2.isNullOrBlank()) }
     val scale = remember { mutableStateOf(1.0f) }
     val imageOffset = remember { mutableStateOf(Offset.Zero) }
@@ -124,17 +127,17 @@ fun EditChapaScreen(
     var sugerenciasCiudades by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Nuevos estados para la procedencia
-    var procedencia by remember { mutableStateOf("") }
-    var metodoObtencion by remember { mutableStateOf("") }
-    var donante by remember { mutableStateOf(TextFieldValue("")) }
+    var procedencia by remember(chapaId) { mutableStateOf(chapa.procedencia.orEmpty()) }
+    var metodoObtencion by remember(chapaId) { mutableStateOf(chapa.metodoObtencion.orEmpty()) }
+    var donante by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.donante.orEmpty())) }
     val opcionesProcedencia = listOf("Mi", "Regalada")
     val opcionesMetodoMi = listOf("Bebida", "Encontrada", "Comprada", "Desconocido")
     var sugerenciasObtencion by remember { mutableStateOf<List<String>>(emptyList()) }
     val listaDonantes by viewModel.sugerenciasDonantes.observeAsState(emptyList())
 
     // Variables específicas para la obtención propia (para no interferir con las generales)
-    var paisObtencion by remember { mutableStateOf(TextFieldValue("")) }
-    var ciudadObtencion by remember { mutableStateOf("") } // String, según tu CityAutoCompleteField
+    var paisObtencion by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.paisObtencion.orEmpty())) }
+    var ciudadObtencion by remember(chapaId) { mutableStateOf(chapa.ciudadObtencion.orEmpty()) }
 
     var isSaving by remember { mutableStateOf(false) }
 
@@ -247,6 +250,9 @@ fun EditChapaScreen(
     val anioFocusRequester = remember { FocusRequester() }
     val paisFocusRequesterObtencion = remember { FocusRequester() }
     val ciudadFocusRequesterObtencion = remember { FocusRequester() }
+    val bringNombreIntoView = remember { BringIntoViewRequester() }
+    val bringPaisObtencionIntoView = remember { BringIntoViewRequester() }
+    val bringCiudadObtencionIntoView = remember { BringIntoViewRequester() }
     val softwareKeyboardController = LocalSoftwareKeyboardController.current // Añade esto arriba
 
 
@@ -327,7 +333,8 @@ fun EditChapaScreen(
 
     Box(
         modifier = Modifier
-            .fillMaxSize()
+        .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -391,7 +398,7 @@ fun EditChapaScreen(
             )
 
             // Tamaño del marco cuadrado visible
-            val frameSizeDp = 300.dp
+            val frameSizeDp = 240.dp
             val density = LocalDensity.current
             val frameSizePx = with(density) { frameSizeDp.toPx() }
 
@@ -460,10 +467,15 @@ fun EditChapaScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(nombreFocusRequester)
+                            .bringIntoViewRequester(bringNombreIntoView)
                             .onFocusChanged { focusState ->
                                 nombreHasFocus.value = focusState.isFocused
                                 if (!focusState.isFocused) expanded = false
                                 else {
+                                    coroutineScope.launch {
+                                        kotlinx.coroutines.delay(200)
+                                        bringNombreIntoView.bringIntoView()
+                                    }
                                     val current = nombre.text
                                     expanded = current.isNotBlank() && nombresExistentes.any {
                                         it.contains(
@@ -517,13 +529,21 @@ fun EditChapaScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             // Campo País con sugerencias inline (no roba foco)
-            val countryList = remember { Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted() }
+            val countryList = remember {
+                (Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry } + listOf("Turquía", "Türkiye"))
+                    .distinct()
+                    .sorted()
+            }
             var expandedCountry by remember { mutableStateOf(false) }
 
             Column {
                 OutlinedTextField(
                     value = pais,
                     onValueChange = { incoming ->
+                        if (incoming.text != pais.text) {
+                            ciudad = TextFieldValue("")
+                            sugerenciasCiudades = emptyList()
+                        }
                         pais = incoming
                         expandedCountry = incoming.text.isNotBlank() && countryList.any { it.contains(incoming.text, ignoreCase = true) }
                     },
@@ -564,6 +584,10 @@ fun EditChapaScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
+                                            if (ctry != pais.text) {
+                                                ciudad = TextFieldValue("")
+                                                sugerenciasCiudades = emptyList()
+                                            }
                                             pais = TextFieldValue(ctry)
                                             expandedCountry = false
                                         }
@@ -966,7 +990,9 @@ fun EditChapaScreen(
 
                 // Campo País: desplegable con búsqueda de países (Locale)
                 val countryListObtencion = remember {
-                    Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry }.sorted()
+                    (Locale.getISOCountries().map { cc -> Locale("", cc).displayCountry } + listOf("Turquía", "Türkiye"))
+                        .distinct()
+                        .sorted()
                 }
                 var expandedCountryObtencion by remember { mutableStateOf(false) }
                 val countrySuggestionsObtencion = remember(paisObtencion.text) { countryListObtencion.filter { it.contains(paisObtencion.text, ignoreCase = true) } }
@@ -976,6 +1002,10 @@ fun EditChapaScreen(
                     OutlinedTextField(
                         value = paisObtencion.text,
                         onValueChange = { new ->
+                            if (new != paisObtencion.text) {
+                                ciudadObtencion = ""
+                                sugerenciasObtencion = emptyList()
+                            }
                             paisObtencion = TextFieldValue(new)
                             // mostrar sugerencias si hay coincidencias
                             expandedCountryObtencion = new.isNotBlank() && countryListObtencion.any { it.contains(new, ignoreCase = true) }
@@ -984,9 +1014,14 @@ fun EditChapaScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .focusRequester(paisFocusRequesterObtencion)
+                            .bringIntoViewRequester(bringPaisObtencionIntoView)
                             .onFocusChanged { fs ->
                                 if (!fs.isFocused) expandedCountryObtencion = false
                                 else {
+                                    coroutineScope.launch {
+                                        kotlinx.coroutines.delay(200)
+                                        bringPaisObtencionIntoView.bringIntoView()
+                                    }
                                     val current = paisObtencion.text
                                     expandedCountryObtencion =
                                         current.isNotBlank() && countryListObtencion.any {
@@ -1018,6 +1053,10 @@ fun EditChapaScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clickable {
+                                                if (ctry != paisObtencion.text) {
+                                                    ciudadObtencion = ""
+                                                    sugerenciasObtencion = emptyList()
+                                                }
                                                 paisObtencion = TextFieldValue(ctry)
                                                 expandedCountryObtencion = false
                                             }
@@ -1043,7 +1082,14 @@ fun EditChapaScreen(
                         focusRequester = ciudadFocusRequesterObtencion,
                         onNext = { softwareKeyboardController?.hide()
                             focusManager.clearFocus()
-                        }
+                        },
+                        onFocus = {
+                            coroutineScope.launch {
+                                kotlinx.coroutines.delay(200)
+                                bringCiudadObtencionIntoView.bringIntoView()
+                            }
+                        },
+                        bringIntoViewRequester = bringCiudadObtencionIntoView
                     )
 
                     // Espacio para sugerencias de ciudades (si decides implementarlas luego)
@@ -1288,25 +1334,11 @@ fun EditChapaScreen(
                             focusManager.clearFocus(force = true)
 
                             val hayNuevaImagen = nuevaImagenUri != null
-
+                            val hayTransformacionDeImagen = scale.value != 1f || imageOffset.value != Offset.Zero
+                            val hayQueGuardarImagen = hayNuevaImagen || hayTransformacionDeImagen
                             val uriParaProcesar = nuevaImagenUri ?: chapa.imagePath?.let {
                                 if (it.startsWith("http")) it.toUri() else File(it).toUri()
                             }
-
-                            if (uriParaProcesar == null) {
-                                Toast.makeText(context, "No hay imagen disponible", Toast.LENGTH_SHORT).show()
-                                isSaving = false
-                                return@Button
-                            }
-
-                            // 2. Procesamos el recorte
-                            val finalImageUri = recortarImagenVisibleDesdeUri(
-                                context,
-                                uriParaProcesar,
-                                scale.value,
-                                imageOffset.value,
-                                frameSizePx
-                            )
 
                             val anyStateEntered = listOf(selectedForma, selectedRayones, selectedMarcas, selectedOxido).any { !it.isNullOrBlank() }
                             val estadoPercentCalc = if (!anyStateEntered) null else {
@@ -1340,22 +1372,36 @@ fun EditChapaScreen(
                                 ciudadObtencion = if (procedencia != "") ciudadObtencion else null
                             )
 
-                            val uriAEnviarAlViewModel = if (hayNuevaImagen) finalImageUri else null
-
-                            // 3. LA CORRUTINA: Aquí es donde ocurre la espera
+                            // El recorte puede implicar leer la imagen remota. Se procesa fuera del hilo UI.
                             coroutineScope.launch {
                                 try {
+                                    val finalImageUri = if (hayQueGuardarImagen) {
+                                        val uri = uriParaProcesar
+                                            ?: throw IllegalStateException("No hay imagen disponible para guardar")
+                                        withContext(Dispatchers.IO) {
+                                            recortarImagenVisibleDesdeUri(
+                                                context,
+                                                uri,
+                                                scale.value,
+                                                imageOffset.value,
+                                                frameSizePx
+                                            )
+                                        } ?: throw IllegalStateException("No se pudo procesar la imagen")
+                                    } else {
+                                        null
+                                    }
+
                                     // LLAMADA SUSPENDIDA: El código se detiene aquí hasta que Supabase responda OK
                                     viewModel.updateChapaEnSupabase(
                                         context,
                                         chapa,
                                         actualizada,
-                                        uriAEnviarAlViewModel
+                                        finalImageUri
                                     )
 
                                     // 4. SOLO CUANDO TERMINA lo anterior, ejecutamos el onSave y cerramos
                                     // Esto garantiza que la lista se refresque con los datos ya subidos
-                                    onSave(actualizada, finalImageUri)
+                                    onSave(actualizada, finalImageUri ?: nuevaImagenUri)
 
                                     // Pequeño delay opcional para asegurar que la UI respire antes de volver
                                     //delay(300)

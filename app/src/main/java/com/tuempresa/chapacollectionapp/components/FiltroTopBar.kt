@@ -1,6 +1,8 @@
 package com.tuempresa.chapacollectionapp.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FilterAlt
@@ -46,24 +48,25 @@ fun FiltroTopBar(
 
                 DropdownMenu(
                     expanded = expandedValores,
-                    onDismissRequest = { expandedValores = false }
+                    onDismissRequest = { expandedValores = false },
+                    modifier = Modifier.heightIn(max = 320.dp)
                 ) {
-                    valoresDisponibles.forEach { valor ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text = valor,
-                                    style = if (valor in valoresSeleccionados) {
-                                        MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                    } else {
-                                        MaterialTheme.typography.bodyLarge
-                                    }
-                                )
-                            },
-                            onClick = {
-                                onValorSeleccionado(valor)
-                            }
-                        )
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        valoresDisponibles.forEach { valor ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = valor,
+                                        style = if (valor in valoresSeleccionados) {
+                                            MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                        } else {
+                                            MaterialTheme.typography.bodyLarge
+                                        }
+                                    )
+                                },
+                                onClick = { onValorSeleccionado(valor) }
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.width(2.dp))

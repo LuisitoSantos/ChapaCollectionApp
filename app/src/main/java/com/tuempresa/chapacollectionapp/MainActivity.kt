@@ -2,11 +2,15 @@
 package com.tuempresa.chapacollectionapp
 
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -29,13 +33,13 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.filled.Public
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,8 +47,12 @@ import androidx.navigation.NavController
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import com.tuempresa.chapacollectionapp.ui.screens.LoginScreen
+import com.tuempresa.chapacollectionapp.ui.components.BeerLoadingScreen
+import com.tuempresa.chapacollectionapp.ui.components.MINIMUM_SPLASH_DURATION_MS
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModelFactory
 import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.SessionStatus
+import kotlinx.coroutines.flow.first
 
 /*
 class MainActivity : ComponentActivity() {
@@ -139,28 +147,31 @@ class MainActivity : ComponentActivity() {
                 val chapaViewModel: ChapaViewModel = viewModel(factory = chapaFactory)
                 val authViewModel: AuthViewModel = viewModel(factory = authFactory)
 
-                val currentUser = authViewModel.currentUser
-                val startDest = if (currentUser != null) "app_main" else "login"
-
-                // Usamos un estado para saber si ya hemos comprobado la sesión
+                // Esperamos a que Supabase termine de restaurar la sesión local.
                 var checkingAuth by remember { mutableStateOf(true) }
                 var userLoggedIn by remember { mutableStateOf(false) }
+                val startupStartedAt = remember { SystemClock.elapsedRealtime() }
 
                 LaunchedEffect(Unit) {
-                    // Esperamos a que Supabase inicialice la sesión local
-                    userLoggedIn = authViewModel.isUserLoggedIn()
-                    checkingAuth = false
-
-                    supabaseService.client.auth.sessionStatus.collect { status ->
-                        userLoggedIn = authViewModel.isUserLoggedIn()
+                    supabaseService.client.auth.sessionStatus.first {
+                        it !is SessionStatus.LoadingFromStorage
                     }
+                    userLoggedIn = authViewModel.isUserLoggedIn()
+                    if (userLoggedIn) {
+                        chapaViewModel.cargarChapasDeSupabase(
+                            showInitialLoading = true,
+                            loadingStartedAt = startupStartedAt
+                        )
+                        snapshotFlow { chapaViewModel.initialChapasLoaded }.first { it }
+                    }
+                    val remainingSplashTime = MINIMUM_SPLASH_DURATION_MS -
+                        (SystemClock.elapsedRealtime() - startupStartedAt)
+                    if (remainingSplashTime > 0) kotlinx.coroutines.delay(remainingSplashTime)
+                    checkingAuth = false
                 }
 
                 if (checkingAuth) {
-                    // Muestra una pantalla vacía o un logo mientras comprueba
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    BeerLoadingScreen(isLoading = true)
                 } else {
                     // Una vez comprobado, cargamos el NavHost normal
                     NavHost(
@@ -172,6 +183,7 @@ class MainActivity : ComponentActivity() {
                             LoginScreen(
                                 viewModel = authViewModel,
                                 onLoginSuccess = {
+                                    chapaViewModel.cargarChapasDeSupabase(showInitialLoading = true)
                                     rootNavController.navigate("app_main") {
                                         popUpTo("login") { inclusive = true }
                                     }
@@ -218,13 +230,27 @@ class MainActivity : ComponentActivity() {
 fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel, rootNavController: NavController) {
     // 2. ESTE CONTROLADOR ES SOLO PARA LAS PESTAÑAS (Lista, Mapa, etc.)
     val snackNavController = rememberNavController()
+    val currentRoute = snackNavController.currentBackStackEntryAsState().value?.destination?.route
 
-    Scaffold(
+    val loadingStartedAt = chapaViewModel.initialLoadingStartedAt
+    var minimumSplashTimeElapsed by remember(loadingStartedAt) {
+        mutableStateOf(
+            loadingStartedAt == 0L ||
+                SystemClock.elapsedRealtime() - loadingStartedAt >= MINIMUM_SPLASH_DURATION_MS
+        )
+    }
+    LaunchedEffect(loadingStartedAt) {
+        val remaining = MINIMUM_SPLASH_DURATION_MS -
+            (SystemClock.elapsedRealtime() - loadingStartedAt)
+        if (loadingStartedAt != 0L && remaining > 0) kotlinx.coroutines.delay(remaining)
+        minimumSplashTimeElapsed = true
+    }
+
+    if (!chapaViewModel.initialChapasLoaded || !minimumSplashTimeElapsed) {
+        BeerLoadingScreen(isLoading = true)
+    } else Scaffold(
         bottomBar = {
             BottomNavigation {
-                val navBackStackEntry by snackNavController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
-
                 listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Anadir).forEach { screen ->
                     BottomNavigationItem(
                         selected = currentRoute == screen.route,
@@ -251,28 +277,50 @@ fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel,
             }
         }
     ) { innerPadding ->
-        NavHost(
-            navController = snackNavController,
-            startDestination = Screen.Lista.route,
-            modifier = androidx.compose.ui.Modifier.padding(innerPadding)
+        Box(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
         ) {
-            composable(Screen.Lista.route) {
-                ChapaListScreen(
-                    chapaViewModel,
-                    authViewModel,
-                    snackNavController, // Este sirve para navegar DENTRO de las pestañas
-                    onLogout = {        // Este sirve para SALIR al login
-                        rootNavController.navigate("login") {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    }
+            // Se conserva vivo el MapView al cambiar de pestaña. Así no descarga y crea
+            // el mapa de nuevo en cada visita, y puede ocultarse antes de mostrar otra vista.
+            ChapaMapScreen(chapaViewModel, isVisible = currentRoute == Screen.Mapa.route)
+
+            if (currentRoute != Screen.Mapa.route) {
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(androidx.compose.material3.MaterialTheme.colorScheme.background)
                 )
             }
 
-            // Estas se quedan igual usando el snackNavController (el de las pestañas)
-            composable(Screen.Mapa.route) { ChapaMapScreen(chapaViewModel) }
-            composable(Screen.Buscar.route) { SearchChapaScreen(chapaViewModel, snackNavController) }
-            composable(Screen.Anadir.route) { AddChapaScreen(chapaViewModel, snackNavController) }
+            NavHost(
+                navController = snackNavController,
+                startDestination = Screen.Lista.route,
+                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                enterTransition = { EnterTransition.None },
+                exitTransition = { ExitTransition.None },
+                popEnterTransition = { EnterTransition.None },
+                popExitTransition = { ExitTransition.None }
+            ) {
+                composable(Screen.Lista.route) {
+                    ChapaListScreen(
+                        chapaViewModel,
+                        authViewModel,
+                        snackNavController,
+                        onLogout = {
+                            rootNavController.navigate("login") {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    )
+                }
+
+                // El mapa persistente de la capa inferior dibuja esta ruta.
+                composable(Screen.Mapa.route) { }
+                composable(Screen.Buscar.route) { SearchChapaScreen(chapaViewModel, snackNavController) }
+                composable(Screen.Anadir.route) { AddChapaScreen(chapaViewModel, snackNavController) }
+            }
         }
     }
 }

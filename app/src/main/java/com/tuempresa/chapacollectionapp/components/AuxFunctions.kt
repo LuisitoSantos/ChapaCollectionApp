@@ -6,9 +6,12 @@ import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.DropdownMenu
@@ -27,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -43,6 +47,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 fun CityAutoCompleteField(
     label: String,
     value: String,
@@ -50,7 +55,9 @@ fun CityAutoCompleteField(
     suggestions: List<String>,
     focusRequester: FocusRequester,
     imeAction: ImeAction = ImeAction.Next, // Valor por defecto
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onFocus: () -> Unit = {},
+    bringIntoViewRequester: BringIntoViewRequester? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -64,7 +71,9 @@ fun CityAutoCompleteField(
             label = { Text(label) },
             modifier = Modifier
                 .fillMaxWidth()
-                .focusRequester(focusRequester),
+                .focusRequester(focusRequester)
+                .then(bringIntoViewRequester?.let { Modifier.bringIntoViewRequester(it) } ?: Modifier)
+                .onFocusChanged { if (it.isFocused) onFocus() },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.Words,
