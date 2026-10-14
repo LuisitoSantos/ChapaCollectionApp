@@ -79,6 +79,7 @@ import com.tuempresa.chapacollectionapp.R
 import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
 import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
+import com.tuempresa.chapacollectionapp.ui.components.FechaObtencionField
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -138,6 +139,9 @@ fun EditChapaScreen(
     // Variables específicas para la obtención propia (para no interferir con las generales)
     var paisObtencion by remember(chapaId) { mutableStateOf(TextFieldValue(chapa.paisObtencion.orEmpty())) }
     var ciudadObtencion by remember(chapaId) { mutableStateOf(chapa.ciudadObtencion.orEmpty()) }
+    var fechaObtencion by remember(chapaId) { mutableStateOf(chapa.fechaObtencion.orEmpty()) }
+    var comentario by remember(chapaId) { mutableStateOf(chapa.comentario.orEmpty().take(500)) }
+    val maxComentarioLength = 500
 
     var isSaving by remember { mutableStateOf(false) }
 
@@ -192,6 +196,8 @@ fun EditChapaScreen(
                 paisObtencion = TextFieldValue(chapa.paisObtencion ?: "")
                 ciudadObtencion = chapa.ciudadObtencion ?: ""
             }
+            fechaObtencion = chapa.fechaObtencion.orEmpty()
+            comentario = chapa.comentario.orEmpty().take(maxComentarioLength)
 
         }
     }
@@ -1108,6 +1114,22 @@ fun EditChapaScreen(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+            FechaObtencionField(
+                value = fechaObtencion,
+                onValueChange = { fechaObtencion = it }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = comentario,
+                onValueChange = { comentario = it.take(maxComentarioLength) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Comentario") },
+                supportingText = { Text("${comentario.length}/$maxComentarioLength") },
+                minLines = 3,
+                maxLines = 5
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
 
@@ -1180,7 +1202,9 @@ fun EditChapaScreen(
                                 metodoObtencion = if (procedencia != "") metodoObtencion else null,
                                 donante = if (procedencia == "Regalada") donante.text else null,
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
-                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
+                                fechaObtencion = fechaObtencion.ifBlank { null },
+                                comentario = comentario.trim().ifBlank { null }
                             )
 
                             val uriNueva = if (nuevaImagenUri != null) finalImageUri else null
@@ -1281,7 +1305,9 @@ fun EditChapaScreen(
                                 metodoObtencion = if (procedencia != "") metodoObtencion else null,
                                 donante = if (procedencia == "Regalada") donante.text else null,
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
-                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
+                                fechaObtencion = fechaObtencion.ifBlank { null },
+                                comentario = comentario.trim().ifBlank { null }
                             )
 
                             // --- CAMBIO CLAVE AQUÍ ---
@@ -1369,7 +1395,9 @@ fun EditChapaScreen(
                                 metodoObtencion = if (procedencia != "") metodoObtencion else null,
                                 donante = if (procedencia == "Regalada") donante.text else null,
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
-                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null
+                                ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
+                                fechaObtencion = fechaObtencion.ifBlank { null },
+                                comentario = comentario.trim().ifBlank { null }
                             )
 
                             // El recorte puede implicar leer la imagen remota. Se procesa fuera del hilo UI.

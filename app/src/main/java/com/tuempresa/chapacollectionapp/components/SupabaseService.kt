@@ -40,6 +40,8 @@ class SupabaseService {
             autoLoadFromStorage = true
             autoSaveToStorage = true
             alwaysAutoRefresh = true
+            scheme = "chapacollectionapp"
+            host = "auth-callback"
         }
     }
 

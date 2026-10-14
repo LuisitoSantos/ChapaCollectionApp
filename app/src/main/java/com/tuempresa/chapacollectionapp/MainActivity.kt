@@ -3,6 +3,7 @@ package com.tuempresa.chapacollectionapp
 
 import android.os.Bundle
 import android.os.SystemClock
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
@@ -55,12 +56,15 @@ import androidx.navigation.NavController
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import com.tuempresa.chapacollectionapp.ui.screens.LoginScreen
+import com.tuempresa.chapacollectionapp.ui.screens.ProfileSetupScreen
 import com.tuempresa.chapacollectionapp.ui.components.BeerLoadingScreen
 import com.tuempresa.chapacollectionapp.ui.components.MINIMUM_SPLASH_DURATION_MS
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModelFactory
 import io.github.jan.supabase.gotrue.auth
 import io.github.jan.supabase.gotrue.SessionStatus
+import io.github.jan.supabase.gotrue.handleDeeplinks
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /*
 class MainActivity : ComponentActivity() {
@@ -142,10 +146,13 @@ class MainActivity : ComponentActivity() {
 */
 
 class MainActivity : ComponentActivity() {
+    private lateinit var supabaseService: com.tuempresa.chapacollectionapp.components.SupabaseService
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val supabaseService = com.tuempresa.chapacollectionapp.components.SupabaseService()
+        supabaseService = com.tuempresa.chapacollectionapp.components.SupabaseService()
+        supabaseService.client.handleDeeplinks(intent)
         val chapaFactory = ChapaViewModelFactory(supabaseService)
         val authFactory = AuthViewModelFactory(supabaseService.client)
 
@@ -155,10 +162,12 @@ class MainActivity : ComponentActivity() {
                 val rootNavController = rememberNavController()
                 val chapaViewModel: ChapaViewModel = viewModel(factory = chapaFactory)
                 val authViewModel: AuthViewModel = viewModel(factory = authFactory)
+                val rootScope = androidx.compose.runtime.rememberCoroutineScope()
 
                 // Esperamos a que Supabase termine de restaurar la sesión local.
                 var checkingAuth by remember { mutableStateOf(true) }
                 var userLoggedIn by remember { mutableStateOf(false) }
+                var needsProfileSetup by remember { mutableStateOf(false) }
                 val startupStartedAt = remember { SystemClock.elapsedRealtime() }
 
                 LaunchedEffect(Unit) {
@@ -167,11 +176,18 @@ class MainActivity : ComponentActivity() {
                     }
                     userLoggedIn = authViewModel.isUserLoggedIn()
                     if (userLoggedIn) {
-                        chapaViewModel.cargarChapasDeSupabase(
-                            showInitialLoading = true,
-                            loadingStartedAt = startupStartedAt
-                        )
-                        snapshotFlow { chapaViewModel.initialChapasLoaded }.first { it }
+                        needsProfileSetup = try {
+                            !authViewModel.hasPublicProfile()
+                        } catch (_: Exception) {
+                            true
+                        }
+                        if (!needsProfileSetup) {
+                            chapaViewModel.cargarChapasDeSupabase(
+                                showInitialLoading = true,
+                                loadingStartedAt = startupStartedAt
+                            )
+                            snapshotFlow { chapaViewModel.initialChapasLoaded }.first { it }
+                        }
                     }
                     val remainingSplashTime = MINIMUM_SPLASH_DURATION_MS -
                         (SystemClock.elapsedRealtime() - startupStartedAt)
@@ -185,16 +201,50 @@ class MainActivity : ComponentActivity() {
                     // Una vez comprobado, cargamos el NavHost normal
                     NavHost(
                         navController = rootNavController,
-                        startDestination = if (userLoggedIn) "app_main" else "login"
+                        startDestination = when {
+                            !userLoggedIn -> "login"
+                            needsProfileSetup -> "profile_setup"
+                            else -> "app_main"
+                        }
                     ) {
                         // PANTALLA DE LOGIN
                         composable("login") {
                             LoginScreen(
                                 viewModel = authViewModel,
                                 onLoginSuccess = {
-                                    chapaViewModel.cargarChapasDeSupabase(showInitialLoading = true)
-                                    rootNavController.navigate("app_main") {
-                                        popUpTo("login") { inclusive = true }
+                                    rootScope.launch {
+                                        val hasProfile = try {
+                                            authViewModel.hasPublicProfile()
+                                        } catch (_: Exception) {
+                                            false
+                                        }
+                                        if (hasProfile) {
+                                            chapaViewModel.cargarChapasDeSupabase(showInitialLoading = true)
+                                            rootNavController.navigate("app_main") {
+                                                popUpTo("login") { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        } else {
+                                            rootNavController.navigate("profile_setup") {
+                                                popUpTo("login") { inclusive = true }
+                                                launchSingleTop = true
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+
+                        composable("profile_setup") {
+                            ProfileSetupScreen(
+                                viewModel = authViewModel,
+                                onProfileReady = {
+                                    rootScope.launch {
+                                        chapaViewModel.cargarChapasDeSupabase(showInitialLoading = true)
+                                        rootNavController.navigate("app_main") {
+                                            popUpTo("profile_setup") { inclusive = true }
+                                            launchSingleTop = true
+                                        }
                                     }
                                 }
                             )
@@ -232,6 +282,12 @@ class MainActivity : ComponentActivity() {
                  */
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        supabaseService.client.handleDeeplinks(intent)
     }
 }
 

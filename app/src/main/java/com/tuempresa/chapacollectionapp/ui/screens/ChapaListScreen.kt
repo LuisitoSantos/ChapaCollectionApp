@@ -366,8 +366,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                             text = { Text("Cerrar sesión") },
                             onClick = {
                                 showMenu = false
-                                authViewModel.signOut()
-                                onLogout()
+                                authViewModel.signOut(onComplete = onLogout)
                             },
                             leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null) }
                         )

@@ -64,6 +64,7 @@ import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeBitmap
 import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeUri
 import com.tuempresa.chapacollectionapp.utils.rotateBitmapIfRequired
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
+import com.tuempresa.chapacollectionapp.ui.components.FechaObtencionField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -98,6 +99,9 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     // En AddChapaScreen, junto a tus otros remembers:
     var paisObtencion by remember { mutableStateOf(TextFieldValue("")) }
     var ciudadObtencion by remember { mutableStateOf("") }
+    var fechaObtencion by rememberSaveable { mutableStateOf("") }
+    var comentario by rememberSaveable { mutableStateOf("") }
+    val maxComentarioLength = 500
 
     // Listas de opciones fijas
     val opcionesProcedencia = listOf("Mi", "Regalada")
@@ -1079,6 +1083,22 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+            FechaObtencionField(
+                value = fechaObtencion,
+                onValueChange = { fechaObtencion = it }
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedTextField(
+                value = comentario,
+                onValueChange = { comentario = it.take(maxComentarioLength) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Comentario") },
+                supportingText = { Text("${comentario.length}/$maxComentarioLength") },
+                minLines = 3,
+                maxLines = 5
+            )
+
             // Validación de campos obligatorios: Nombre, País e Imagen
             val isNameValid = remember(nombre.text) { nombre.text.trim().isNotEmpty() }
             val isPaisValid = remember(pais.text) { pais.text.trim().isNotEmpty() }
@@ -1219,6 +1239,8 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             donante = if (procedencia == "Regalada") donante.text else null,
                             paisObtencion = if (procedencia != "") paisObtencion.text else null,
                             ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
+                            fechaObtencion = fechaObtencion.ifBlank { null },
+                            comentario = comentario.trim().ifBlank { null },
                             imagePath = null // Se actualizará en el servicio tras subir la foto
                         )
 
@@ -1233,6 +1255,8 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         nombre = TextFieldValue("")
                         pais = TextFieldValue("")
                         anio = TextFieldValue("")
+                        fechaObtencion = ""
+                        comentario = ""
                         imageUriState.value = null
 
                         navController.navigate(Screen.Lista.route) {
