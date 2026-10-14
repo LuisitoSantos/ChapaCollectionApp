@@ -1,20 +1,33 @@
 package com.tuempresa.chapacollectionapp.components
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FilterAlt
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+private enum class FiltroMenu { Cerrado, Categorias, Valores }
+
 @Composable
 fun FiltroTopBar(
+    modifier: Modifier = Modifier,
     categoriasDisponibles: List<String>,
     valoresDisponibles: List<String>,
     valoresSeleccionados: List<String>,
@@ -23,71 +36,66 @@ fun FiltroTopBar(
     onValorSeleccionado: (String) -> Unit,
     onLimpiarFiltros: () -> Unit
 ) {
-    var expandedCategoria by remember { mutableStateOf(false) }
-    var expandedValores by remember { mutableStateOf(false) }
+    var menuAbierto by remember { mutableStateOf(FiltroMenu.Cerrado) }
 
     Row(
-        modifier = Modifier.wrapContentWidth(),
+        modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.End
+        horizontalArrangement = Arrangement.Start
     ) {
-        // Botón: Limpiar Filtros
         if (categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()) {
-            IconButton(onClick = onLimpiarFiltros) {
-                //Text("Limpiar filtros")
+            IconButton(onClick = {
+                menuAbierto = FiltroMenu.Cerrado
+                onLimpiarFiltros()
+            }) {
                 Icon(Icons.Default.Refresh, contentDescription = "Limpiar filtros")
             }
-            Spacer(modifier = Modifier.width(2.dp))
         }
 
-        // Botón: Valores
         if (categoriaSeleccionada != null) {
-            IconButton(onClick = { expandedValores = true }) {
-                //Text("Valores")
-                Icon(Icons.Default.ArrowDropDown, contentDescription = "Valores")
-
+            Box {
+                IconButton(onClick = { menuAbierto = FiltroMenu.Valores }) {
+                    Icon(Icons.Default.ArrowDropDown, contentDescription = "Ver valores del filtro")
+                }
                 DropdownMenu(
-                    expanded = expandedValores,
-                    onDismissRequest = { expandedValores = false },
+                    expanded = menuAbierto == FiltroMenu.Valores,
+                    onDismissRequest = { menuAbierto = FiltroMenu.Cerrado },
                     modifier = Modifier.heightIn(max = 320.dp)
                 ) {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        valoresDisponibles.forEach { valor ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = valor,
-                                        style = if (valor in valoresSeleccionados) {
-                                            MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                                        } else {
-                                            MaterialTheme.typography.bodyLarge
-                                        }
-                                    )
-                                },
-                                onClick = { onValorSeleccionado(valor) }
-                            )
-                        }
+                    valoresDisponibles.forEach { valor ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = valor,
+                                    style = if (valor in valoresSeleccionados) {
+                                        MaterialTheme.typography.bodyLarge.copy(
+                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                        )
+                                    } else MaterialTheme.typography.bodyLarge
+                                )
+                            },
+                            onClick = { onValorSeleccionado(valor) }
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.width(2.dp))
             }
         }
 
-        // Botón: Filtrar por...
-        IconButton(onClick = { expandedCategoria = true }) {
-            Icon(imageVector = Icons.Default.FilterAlt, contentDescription = "Filtrar por")
-            Spacer(modifier = Modifier.width(4.dp))
-            //Text("Filtrar por...")
+        Box {
+            IconButton(onClick = { menuAbierto = FiltroMenu.Categorias }) {
+                Icon(Icons.Default.FilterAlt, contentDescription = "Filtrar por categoría")
+            }
             DropdownMenu(
-                expanded = expandedCategoria,
-                onDismissRequest = { expandedCategoria = false }
+                expanded = menuAbierto == FiltroMenu.Categorias,
+                onDismissRequest = { menuAbierto = FiltroMenu.Cerrado },
+                modifier = Modifier.heightIn(max = 320.dp)
             ) {
                 categoriasDisponibles.forEach { categoria ->
                     DropdownMenuItem(
                         text = { Text(categoria) },
                         onClick = {
+                            menuAbierto = FiltroMenu.Cerrado
                             onCategoriaSeleccionada(categoria)
-                            expandedCategoria = false
                         }
                     )
                 }

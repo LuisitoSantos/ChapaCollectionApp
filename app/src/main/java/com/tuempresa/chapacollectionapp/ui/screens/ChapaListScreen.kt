@@ -14,8 +14,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
@@ -23,6 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Public
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.SwipeToDismiss
 import androidx.compose.material.DismissDirection
 import androidx.compose.material.DismissValue
@@ -74,12 +80,39 @@ import androidx.compose.ui.unit.sp
 import androidx.core.text.color
 import coil.compose.AsyncImage
 import com.tuempresa.chapacollectionapp.ui.components.ChapaIcon
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaBackground
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaNavy
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaOrange
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaOrangeLight
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaOutline
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaSlate
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import kotlin.text.lowercase
 import kotlin.text.replace
 import kotlin.text.toIntOrNull
 
 // Fin de imports
+
+private fun valorDeCategoria(chapa: Chapa, categoria: String): String? = when (categoria) {
+    "Nombre" -> chapa.nombre
+    "País" -> chapa.pais
+    "Ciudad" -> chapa.ciudad
+    "Año" -> chapa.anio?.takeIf { it > 0 }?.toString()
+    "Color primario" -> chapa.colorPrimario
+    "Color secundario 1" -> chapa.colorSecundario1
+    "Color secundario 2" -> chapa.colorSecundario2
+    "Estado de forma" -> chapa.estadoForma
+    "Rayones" -> chapa.estadoRayones
+    "Marcas" -> chapa.estadoMarcas
+    "Óxido" -> chapa.estadoOxido
+    "Estado (%)" -> chapa.estadoPercent?.toString()
+    "Procedencia" -> chapa.procedencia
+    "Método de obtención" -> chapa.metodoObtencion
+    "Donante" -> chapa.donante
+    "País de obtención" -> chapa.paisObtencion
+    "Ciudad de obtención" -> chapa.ciudadObtencion
+    else -> null
+}?.trim()?.takeIf { it.isNotEmpty() }
 
 // Composable que dibuja un contorno tipo "chapa" con dientes regulares (triángulos)
 @Composable
@@ -163,11 +196,18 @@ fun ChapaOutline(
 fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, navController: NavHostController, onLogout: () -> Unit) {
 
     var showMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     val coroutineScope = rememberCoroutineScope()
     //val chapas by viewModel.allChapas.observeAsState(emptyList())
     val chapas by viewModel.chapasSupabase
 
-    val categoriasDisponibles = listOf("Nombre", "Pais")
+    val categoriasDisponibles = listOf(
+        "Nombre", "País", "Ciudad", "Año", "Color primario", "Color secundario 1",
+        "Color secundario 2", "Estado de forma", "Rayones", "Marcas", "Óxido",
+        "Estado (%)", "Procedencia", "Método de obtención", "Donante",
+        "País de obtención", "Ciudad de obtención"
+    )
     var categoriaSeleccionada by remember { mutableStateOf<String?>(null) }
 
     val valoresSeleccionados = remember { mutableStateListOf<String>() }
@@ -179,12 +219,10 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
     var chapaConMenu by remember { mutableStateOf<Chapa?>(null) }
 
     var imagenSeleccionada by remember { mutableStateOf<String?>(null) }
-    var chapaEnImagenAmpliada by remember { mutableStateOf<Chapa?>(null) }
 
     val vistaCuadricula = viewModel.vistaCuadricula
 
     val context = LocalContext.current
-    viewModel.cargarPreferenciaVista(context)
 
     // Aplicar filtro si hay nombre seleccionado
     /*val chapasFiltradas = chapas.filter {
@@ -197,12 +235,14 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
 
      */
 
-    val chapasFiltradas = chapas.filter {
-        when (categoriaSeleccionada) {
-            "Nombre" -> it.nombre in valoresSeleccionados || valoresSeleccionados.isEmpty()
-            "Pais" -> it.pais in valoresSeleccionados || valoresSeleccionados.isEmpty()
-            else -> true
-        }
+    val chapasFiltradas = chapas.filter { chapa ->
+        val queryMatches = query.isBlank() || listOf(chapa.nombre, chapa.pais, chapa.ciudad.orEmpty())
+            .any { it.contains(query.trim(), ignoreCase = true) }
+        val valorCategoria = categoriaSeleccionada?.let { valorDeCategoria(chapa, it) }
+        queryMatches && (
+            categoriaSeleccionada == null || valoresSeleccionados.isEmpty() ||
+                valorCategoria != null && valorCategoria in valoresSeleccionados
+            )
     }.let { lista ->
         // APLICAR ORDENACIÓN SEGÚN EL CRITERIO
         when (viewModel.criterioOrden) {
@@ -218,11 +258,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
         }
     }
 
-    val valoresDisponibles = when (categoriaSeleccionada) {
-        "Nombre" -> chapas.map { it.nombre }.distinct().sorted()
-        "Pais" -> chapas.map { it.pais }.distinct().sorted()
-        else -> emptyList()
-    }
+    val valoresDisponibles = categoriaSeleccionada?.let { categoria ->
+        chapas.mapNotNull { valorDeCategoria(it, categoria) }.distinct().sorted()
+    }.orEmpty()
 
     LaunchedEffect(Unit) {
         viewModel.cargarPreferenciaVista(context)
@@ -255,6 +293,7 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(ChapaBackground)
             .pointerInput(Unit) {
                 detectTapGestures(onTap = {
                     chapasEnEdicion.value = emptySet()
@@ -263,213 +302,88 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // Cabecera: usar un Box para mantener el contador siempre centrado
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp)
-                    .height(56.dp) // altura fija para evitar cambios al desplegar filtros
+                modifier = Modifier.fillMaxWidth().height(68.dp).padding(horizontal = 16.dp)
             ) {
-                // Row con extremos (izquierda: icono, derecha: filtros)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = {
-                        viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
-                    }) {
-                        Icon(
-                            imageVector = if (vistaCuadricula) Icons.AutoMirrored.Filled.List else Icons.Default.GridView,
-                            contentDescription = "Cambiar vista"
-                        )
+                FiltroTopBar(
+                    modifier = Modifier.align(Alignment.CenterStart),
+                    categoriasDisponibles = categoriasDisponibles,
+                    valoresDisponibles = valoresDisponibles,
+                    valoresSeleccionados = valoresSeleccionados,
+                    categoriaSeleccionada = categoriaSeleccionada,
+                    onCategoriaSeleccionada = { categoria ->
+                        if (categoria != categoriaSeleccionada) valoresSeleccionados.clear()
+                        categoriaSeleccionada = categoria
+                    },
+                    onValorSeleccionado = { valor ->
+                        if (valor in valoresSeleccionados) valoresSeleccionados.remove(valor)
+                        else valoresSeleccionados.add(valor)
+                    },
+                    onLimpiarFiltros = {
+                        categoriaSeleccionada = null
+                        valoresSeleccionados.clear()
                     }
-
-                    Box(modifier = Modifier.wrapContentWidth()) {
-                        FiltroTopBar(
-                            categoriasDisponibles = categoriasDisponibles,
-                            valoresDisponibles = valoresDisponibles,
-                            valoresSeleccionados = valoresSeleccionados,
-                            categoriaSeleccionada = categoriaSeleccionada,
-                            onCategoriaSeleccionada = { categoriaSeleccionada = it },
-                            onValorSeleccionado = { valor ->
-                                if (valoresSeleccionados.contains(valor)) {
-                                    valoresSeleccionados.remove(valor)
-                                } else {
-                                    valoresSeleccionados.add(valor)
-                                }
-                            },
-                            onLimpiarFiltros = {
-                                categoriaSeleccionada = null
-                                valoresSeleccionados.clear()
-                            }
+                )
+                Box(Modifier.align(Alignment.Center), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        ChapaIcon(Modifier.fillMaxSize(), color = ChapaOrange)
+                        Text(
+                            text = chapas.size.toString(),
+                            color = ChapaNavy,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
                         )
                     }
                 }
-
-                // Contador centrado por encima del Row (overlay estable)
-                /*
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .zIndex(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
-
-                    Box(modifier = Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                        ChapaOutline(
-                            modifier = Modifier.fillMaxSize(),
-                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
-                            strokeWidthDp = 1.dp,
-                            teeth = 16
-                        )
-
+                Box(Modifier.align(Alignment.CenterEnd)) {
+                    Surface(
+                        modifier = Modifier.size(44.dp),
+                        shape = CircleShape,
+                        color = ChapaOrangeLight
+                    ) {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Opciones de cuenta", tint = ChapaOrange)
+                        }
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
                         Text(
-                            text = chapasFiltradas.size.toString(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
+                            text = authViewModel.currentUser?.email ?: "Cuenta",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ChapaSlate
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Ordenar por: ${viewModel.criterioOrden}") },
+                            onClick = {
+                                showMenu = false
+                                showSortMenu = true
+                            },
+                            trailingIcon = { Text("›", color = ChapaSlate) }
+                        )
+                        HorizontalDivider()
+                        DropdownMenuItem(
+                            text = { Text("Cerrar sesión") },
+                            onClick = {
+                                showMenu = false
+                                authViewModel.signOut()
+                                onLogout()
+                            },
+                            leadingIcon = { Icon(Icons.Default.ExitToApp, contentDescription = null) }
                         )
                     }
-                }*/
-
-                // Contador centrado por encima del Row (overlay estable)
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .zIndex(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
-
-                    // Envolvemos el contador en un Box clickable
-                    /*
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clickable { showMenu = true }, // Al pulsar, activamos el menú
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ChapaOutline(
-                            modifier = Modifier.fillMaxSize(),
-                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground,
-                            strokeWidthDp = 1.dp,
-                            teeth = 16
-                        )
-
-                        Text(
-                            text = chapasFiltradas.size.toString(),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
-                        )
-                     */
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp) // Tamaño del botón
-                            .clickable { showMenu = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val hayFiltro = categoriaSeleccionada != null || valoresSeleccionados.isNotEmpty()
-                        val colorChapa = if (hayFiltro) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground
-
-                        // AQUÍ USAS EL NUEVO COMPONENTE
-                        ChapaIcon(
-                            modifier = Modifier.fillMaxSize(),
-                            color = colorChapa,
-                            teeth = 15
-                        )
-                        /*
-                        Text(
-                            text = chapasFiltradas.size.toString(),
-                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
-                            color = colorChapa
-                        )
-                         */
-
-                        Text(
-                            text = chapasFiltradas.size.toString(),
-                            style = MaterialTheme.typography.bodyLarge.copy(
-                                fontWeight = FontWeight.ExtraBold, // Un poco más de peso para que resalte en el centro
-                                fontSize = 16.sp
-                            ),
-                            color = colorChapa
-                        )
-
-                        // --- EL POP-UP (DropdownMenu) ---
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false } // Se cierra al pulsar fuera
-                        ) {
-                            Text(
-                                text = "Usuario: ${authViewModel.currentUser?.email ?: "Desconocido"}",
-                                modifier = Modifier.padding(16.dp, 8.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
-                            )
-                            Divider()
+                    DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                        listOf("Nombre", "Pais", "Color", "Estado", "Año").forEach { opcion ->
                             DropdownMenuItem(
-                                text = {
-                                    Text(if (viewModel.vistaCuadricula) "Vista actual: Cuadrícula" else "Vista actual: Lista")
-                                },
+                                text = { Text(opcion) },
                                 onClick = {
-                                    // Al pulsar, cambiamos tanto la vista actual como la guardada
-                                    viewModel.setVistaCuadricula(context, !viewModel.vistaCuadricula)
+                                    viewModel.guardarCriterioOrden(context, opcion)
+                                    showSortMenu = false
                                 },
                                 leadingIcon = {
-                                    Icon(
-                                        imageVector = if (viewModel.vistaCuadricula) Icons.Default.GridView else Icons.AutoMirrored.Filled.List,
-                                        contentDescription = null
-                                    )
-                                },
-                                trailingIcon = {
-                                    // Indicador visual de qué está seleccionado
-                                    Switch(
-                                        checked = viewModel.vistaCuadricula,
-                                        onCheckedChange = { viewModel.setVistaCuadricula(context, it) }
-                                    )
-                                }
-                            )
-
-                            Divider()
-                            Text(
-                                text = "Ordenar por:",
-                                modifier = Modifier.padding(16.dp, 4.dp),
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-
-                            val opcionesOrden = listOf("Nombre", "Pais", "Color", "Estado", "Año")
-
-                            opcionesOrden.forEach { opcion ->
-                                DropdownMenuItem(
-                                    text = { Text(opcion) },
-                                    onClick = {
-                                        viewModel.guardarCriterioOrden(context, opcion)
-                                        // No cerramos el menú para que pueda cambiar varios ajustes
-                                    },
-                                    leadingIcon = {
-                                        // Icono de check si es la opción seleccionada
-                                        if (viewModel.criterioOrden == opcion) {
-                                            Icon(Icons.Default.Check, contentDescription = null, tint = Color.Green)
-                                        } else {
-                                            Spacer(modifier = Modifier.size(24.dp))
-                                        }
+                                    if (viewModel.criterioOrden == opcion) {
+                                        Icon(Icons.Default.Check, contentDescription = null, tint = ChapaOrange)
                                     }
-                                )
-                            }
-
-                            Divider()
-                            DropdownMenuItem(
-                                text = { Text("Cerrar Sesión") },
-                                onClick = {
-                                    showMenu = false
-                                    authViewModel.signOut() // 1. Borra sesión en Supabase
-                                    onLogout()              // 2. Ejecuta el salto al Login en el MainActivity
-                                },
-                                leadingIcon = {
-                                    Icon(Icons.Default.ExitToApp, contentDescription = null)
                                 }
                             )
                         }
@@ -477,51 +391,138 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                 }
             }
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f).height(56.dp),
+                    singleLine = true,
+                    placeholder = { Text("Buscar por nombre o marca…", color = ChapaSlate) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = ChapaSlate) },
+                    shape = RoundedCornerShape(16.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF0F4F8),
+                        unfocusedContainerColor = Color(0xFFF0F4F8),
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = ChapaNavy,
+                        unfocusedTextColor = ChapaNavy
+                    )
+                )
+                Spacer(Modifier.width(10.dp))
+                IconButton(
+                    onClick = { viewModel.setVistaCuadricula(context, !vistaCuadricula) },
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .border(1.dp, ChapaOutline, RoundedCornerShape(12.dp))
+                ) {
+                    Icon(
+                        imageVector = if (vistaCuadricula) Icons.AutoMirrored.Filled.List else Icons.Default.GridView,
+                        contentDescription = "Cambiar vista",
+                        tint = ChapaSlate
+                    )
+                }
+            }
 
+            Spacer(modifier = Modifier.height(4.dp))
             if (vistaCuadricula) {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(3),
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(items = chapasFiltradas, key = { it.id ?: it.hashCode() }) { chapa ->
-                        Box(modifier = Modifier
-                            .aspectRatio(1f)
-                            .combinedClickable(
+                    gridItemsIndexed(items = chapasFiltradas, key = { _, item -> item.id ?: item.hashCode() }) { index, chapa ->
+                        Box {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .combinedClickable(
                                 onClick = {
-                                    chapaEnImagenAmpliada = chapa
                                     imagenSeleccionada = chapa.imagePath
                                 },
                                 onLongClick = { chapaConMenu = chapa }
-                            )
-                        ) {
-                            AsyncImage(
-                                //painter = rememberAsyncImagePainter(File(chapa.imagePath ?: "")),
-                                model = chapa.imagePath,
-                                contentDescription = "Imagen de la chapa",
-                                // 1. Usamos Fit para ver el borde original de la imagen sin estirarlo
-                                contentScale = ContentScale.Fit,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-
-                            // Badge porcentaje: 'ND' si null, o 'xx%'
-                            Box(modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(6.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.surface,
-                                    shape = RoundedCornerShape(6.dp)
-                                )
-                                .border(1.dp, Color.LightGray, RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ),
+                                shape = RoundedCornerShape(14.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, ChapaOutline),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                             ) {
-                                val text = chapa.estadoPercent?.let { "$it%" } ?: "ND"
-                                Text(text = text, style = MaterialTheme.typography.bodySmall)
+                                Column {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .aspectRatio(1f)
+                                            .background(Color(0xFFF1F3F5))
+                                    ) {
+                                        AsyncImage(
+                                            model = chapa.imagePath,
+                                            contentDescription = "Imagen de ${chapa.nombre}",
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.fillMaxSize().padding(7.dp)
+                                        )
+                                        Surface(
+                                            modifier = Modifier.align(Alignment.TopStart).padding(5.dp),
+                                            shape = RoundedCornerShape(50),
+                                            color = ChapaOrangeLight
+                                        ) {
+                                            Text(
+                                                text = "#${(index + 1).toString().padStart(3, '0')}",
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = ChapaOrange,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Column(Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
+                                        Text(
+                                            text = chapa.nombre,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = ChapaNavy,
+                                            maxLines = 2,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Spacer(Modifier.height(3.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Default.Public,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(12.dp),
+                                                tint = ChapaSlate
+                                            )
+                                            Spacer(Modifier.width(3.dp))
+                                            Text(
+                                                text = chapa.pais,
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = ChapaSlate,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = chapa.estadoPercent?.let { "$it%" } ?: "Sin estado",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = if (chapa.estadoPercent == null) ChapaSlate else ChapaOrange,
+                                                maxLines = 1
+                                            )
+                                            chapa.anio?.takeIf { it > 0 }?.let { year ->
+                                                Text(year.toString(), style = MaterialTheme.typography.labelSmall, color = ChapaSlate)
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             DropdownMenu(
@@ -553,11 +554,14 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                 val onEditar: (Chapa) -> Unit = { chapa -> chapaAEditar.value = chapa }
                 val onEliminar: (Chapa) -> Unit = { chapa -> chapaAEliminar = chapa; mostrarConfirmacion = true }
 
-                LazyColumn {
-                    items(
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(bottom = 12.dp)
+                ) {
+                    itemsIndexed(
                         items = chapasFiltradas,
-                        key = { it.id ?: it.hashCode() } // Usar 'key' es crucial para animaciones correctas
-                    ) { chapa ->
+                        key = { _, item -> item.id ?: item.hashCode() }
+                    ) { index, chapa ->
                         val dismissState = rememberDismissState(
                             confirmStateChange = {
                                 if (it == DismissValue.DismissedToEnd) {
@@ -617,9 +621,9 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                                     onLongPress = {},
                                     onTap = {},
                                     onImageClick = {
-                                        chapaEnImagenAmpliada = chapa
                                         imagenSeleccionada = chapa.imagePath
-                                    }
+                                    },
+                                    number = index + 1
                                 )
                             }
                         )
@@ -671,22 +675,6 @@ fun ChapaListScreen(viewModel: ChapaViewModel, authViewModel: AuthViewModel, nav
                 imageUrl = url,
                 onDismiss = {
                     imagenSeleccionada = null
-                    chapaEnImagenAmpliada = null
-                },
-                onEdit = chapaEnImagenAmpliada?.let { chapa ->
-                    {
-                        imagenSeleccionada = null
-                        chapaEnImagenAmpliada = null
-                        chapaAEditar.value = chapa
-                    }
-                },
-                onDelete = chapaEnImagenAmpliada?.let { chapa ->
-                    {
-                        imagenSeleccionada = null
-                        chapaEnImagenAmpliada = null
-                        chapaAEliminar = chapa
-                        mostrarConfirmacion = true
-                    }
                 }
             )
         }

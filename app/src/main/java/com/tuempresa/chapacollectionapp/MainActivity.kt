@@ -19,18 +19,24 @@ import com.tuempresa.chapacollectionapp.navigation.Screen
 import com.tuempresa.chapacollectionapp.ui.screens.AddChapaScreen
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaListScreen
 import com.tuempresa.chapacollectionapp.ui.theme.ChapaCollectionAppTheme
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaBackground
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaOrange
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaSlate
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModelFactory
 import androidx.compose.material.Scaffold
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
+import androidx.compose.material.FabPosition
+import androidx.compose.material.FloatingActionButton
 import androidx.compose.material.Text
 import com.tuempresa.chapacollectionapp.ui.screens.SearchChapaScreen
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.Icon
 import androidx.compose.material.icons.filled.Public
 import androidx.compose.runtime.Composable
@@ -43,6 +49,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
@@ -76,7 +84,7 @@ class MainActivity : ComponentActivity() {
                             val navBackStackEntry = navController.currentBackStackEntryAsState().value
                             val currentRoute = navBackStackEntry?.destination?.route
 
-                            listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Anadir).forEach { screen ->
+                            listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Comunidad).forEach { screen ->
                                 BottomNavigationItem(
                                     selected = currentRoute == screen.route,
                                     onClick = {
@@ -93,6 +101,7 @@ class MainActivity : ComponentActivity() {
                                             Screen.Lista -> Icons.Default.List
                                             Screen.Mapa -> Icons.Default.Public
                                             Screen.Buscar -> Icons.Default.Search
+                                            Screen.Comunidad -> Icons.Default.Groups
                                             Screen.Anadir -> Icons.Default.Add
                                             else -> Icons.Default.Search
                                         }
@@ -249,9 +258,30 @@ fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel,
     if (!chapaViewModel.initialChapasLoaded || !minimumSplashTimeElapsed) {
         BeerLoadingScreen(isLoading = true)
     } else Scaffold(
+        backgroundColor = ChapaBackground,
+        floatingActionButtonPosition = FabPosition.End,
+        floatingActionButton = {
+            if (currentRoute == Screen.Lista.route) {
+                FloatingActionButton(
+                    onClick = {
+                        snackNavController.navigate(Screen.Anadir.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                    backgroundColor = ChapaOrange,
+                    contentColor = Color.White
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Añadir chapa")
+                }
+            }
+        },
         bottomBar = {
-            BottomNavigation {
-                listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Anadir).forEach { screen ->
+            BottomNavigation(
+                backgroundColor = Color.White,
+                contentColor = ChapaOrange,
+                elevation = 8.dp
+            ) {
+                listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Comunidad).forEach { screen ->
                     BottomNavigationItem(
                         selected = currentRoute == screen.route,
                         onClick = {
@@ -262,11 +292,14 @@ fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel,
                             }
                         },
                         label = { Text(screen.label) },
+                        selectedContentColor = ChapaOrange,
+                        unselectedContentColor = ChapaSlate,
                         icon = {
                             val icon = when(screen) {
                                 Screen.Lista -> Icons.Default.List
                                 Screen.Mapa -> Icons.Default.Public
                                 Screen.Buscar -> Icons.Default.Search
+                                Screen.Comunidad -> Icons.Default.Groups
                                 Screen.Anadir -> Icons.Default.Add
                                 else -> Icons.Default.Search
                             }
@@ -319,6 +352,14 @@ fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel,
                 // El mapa persistente de la capa inferior dibuja esta ruta.
                 composable(Screen.Mapa.route) { }
                 composable(Screen.Buscar.route) { SearchChapaScreen(chapaViewModel, snackNavController) }
+                composable(Screen.Comunidad.route) {
+                    androidx.compose.foundation.layout.Box(
+                        Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Comunidad · Próximamente")
+                    }
+                }
                 composable(Screen.Anadir.route) { AddChapaScreen(chapaViewModel, snackNavController) }
             }
         }
@@ -331,7 +372,7 @@ fun AppBottomNavigation(navController: NavController) {
     val currentRoute = navBackStackEntry?.destination?.route
 
     // Solo mostramos la barra si la ruta actual es una de las pestañas
-    val screens = listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Anadir)
+    val screens = listOf(Screen.Lista, Screen.Mapa, Screen.Buscar, Screen.Comunidad)
     if (screens.any { it.route == currentRoute }) {
         BottomNavigation {
             screens.forEach { screen ->
@@ -350,6 +391,7 @@ fun AppBottomNavigation(navController: NavController) {
                             Screen.Lista -> Icons.Default.List
                             Screen.Mapa -> Icons.Default.Public
                             Screen.Buscar -> Icons.Default.Search
+                            Screen.Comunidad -> Icons.Default.Groups
                             Screen.Anadir -> Icons.Default.Add
                             else -> Icons.Default.Search
                         }

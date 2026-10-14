@@ -9,35 +9,42 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = ChapaOrange,
+    onPrimary = ChapaNavy,
+    secondary = ChapaOrangeLight,
+    onSecondary = ChapaNavy,
+    tertiary = ChapaSlate,
+    background = Color(0xFF221A10),
+    onBackground = Color(0xFFF8F7F6),
+    surface = Color(0xFF2C261F),
+    onSurface = Color(0xFFF8F7F6),
+    outline = Color(0xFF60564A),
+    outlineVariant = Color(0xFF463E34)
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    primary = ChapaOrange,
     onPrimary = Color.White,
+    secondary = ChapaSlate,
     onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiary = ChapaNavy,
+    background = ChapaBackground,
+    onBackground = ChapaNavy,
+    surface = Color.White,
+    onSurface = ChapaNavy,
+    outline = ChapaOutline,
+    outlineVariant = ChapaOutline
 )
 
 @Composable
 fun ChapaCollectionAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

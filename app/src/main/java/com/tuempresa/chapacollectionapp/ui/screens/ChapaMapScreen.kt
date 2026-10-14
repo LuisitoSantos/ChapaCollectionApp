@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.tuempresa.chapacollectionapp.components.descargarBitmap
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaOrange
+import com.tuempresa.chapacollectionapp.ui.theme.ChapaSlate
 import kotlinx.coroutines.launch
 
 @Composable
@@ -182,7 +184,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
                     androidx.compose.material3.Icon(
                         imageVector = androidx.compose.material.icons.Icons.Default.LocationOn,
                         contentDescription = null,
-                        tint = androidx.compose.ui.graphics.Color(0xFF2196F3)
+                        tint = ChapaOrange
                     )
                     androidx.compose.foundation.layout.Spacer(modifier = Modifier.width(8.dp))
                     androidx.compose.material3.Text(
@@ -221,7 +223,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
                                 androidx.compose.material3.Text(
                                     text = "x$cantidad",
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                    color = androidx.compose.ui.graphics.Color(0xFF2196F3),
+                                    color = ChapaOrange,
                                     modifier = Modifier.padding(start = 8.dp)
                                 )
                             }
@@ -252,7 +254,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
                         Text(
                             text = "Detalle",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
+                            color = ChapaSlate
                         )
                         // Botón para cerrar la info
                         IconButton(
@@ -263,7 +265,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Cerrar",
                                 modifier = Modifier.scale(0.5f), // Aquí es donde se aplica la escala
-                                tint = Color.Gray
+                                tint = ChapaSlate
                             )
                         }
                     }
@@ -315,7 +317,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
                             text = "Varios",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF2196F3)
+                            color = ChapaOrange
                         )
                         IconButton(onClick = { chapasEnCluster = emptyList() }, modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.scale(0.7f))
@@ -356,7 +358,7 @@ fun ChapaMapScreen(viewModel: ChapaViewModel, isVisible: Boolean = true) {
 
 private suspend fun actualizarMarcadores(context: android.content.Context, map: MapLibreMap, style: Style, chapas: List<Chapa>) {
     val sourceId = "chapas-source"
-    val colorAzul = android.graphics.Color.parseColor("#2196F3")
+    val colorMarcador = android.graphics.Color.rgb(236, 146, 19)
 
     // 1. Agrupamos chapas por coordenadas exactas
     val chapasPorCoordenada = chapas.groupBy { "${it.latitud},${it.longitud}" }
@@ -430,7 +432,7 @@ private suspend fun actualizarMarcadores(context: android.content.Context, map: 
     if (style.getLayer("circulos-marcadores") == null) {
         style.addLayer(org.maplibre.android.style.layers.CircleLayer("circulos-marcadores", sourceId).apply {
             setProperties(
-                org.maplibre.android.style.layers.PropertyFactory.circleColor(colorAzul),
+                org.maplibre.android.style.layers.PropertyFactory.circleColor(colorMarcador),
                 org.maplibre.android.style.layers.PropertyFactory.circleRadius(12f),
                 org.maplibre.android.style.layers.PropertyFactory.circleStrokeColor(android.graphics.Color.WHITE),
                 org.maplibre.android.style.layers.PropertyFactory.circleStrokeWidth(2f)
