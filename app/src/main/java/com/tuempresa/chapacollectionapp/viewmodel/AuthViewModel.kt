@@ -13,7 +13,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import androidx.lifecycle.ViewModelProvider
 import com.tuempresa.chapacollectionapp.data.PublicProfile
+import com.tuempresa.chapacollectionapp.data.CommunityChapa
+import com.tuempresa.chapacollectionapp.data.CommunityProfile
 import io.github.jan.supabase.postgrest.from
+import io.github.jan.supabase.postgrest.query.Order
 
 class AuthViewModel(private val client: SupabaseClient) : ViewModel() {
 
@@ -113,26 +116,85 @@ class AuthViewModel(private val client: SupabaseClient) : ViewModel() {
 
     suspend fun hasPublicProfile(): Boolean {
         val userId = client.auth.currentSessionOrNull()?.user?.id ?: return false
-        return client.from("profiles").select {
+        val profile = client.from("profiles").select {
             filter { eq("id", userId) }
-        }.decodeList<PublicProfile>().isNotEmpty()
+        }.decodeList<PublicProfile>().firstOrNull()
+        return !profile?.username.isNullOrBlank() && !profile?.country.isNullOrBlank()
     }
 
-    fun createPublicProfile(username: String) {
+    suspend fun getCurrentPublicProfile(): PublicProfile? {
+        val userId = client.auth.currentSessionOrNull()?.user?.id ?: return null
+        return client.from("profiles").select {
+            filter { eq("id", userId) }
+        }.decodeList<PublicProfile>().firstOrNull()
+    }
+
+    suspend fun searchCommunityUsers(query: String, country: String? = null): List<CommunityProfile> {
+        if (query.isBlank() && country.isNullOrBlank()) return emptyList()
+        return client.from("community_profiles").select {
+            filter {
+                if (query.isNotBlank()) ilike("username", "%${query.trim()}%")
+                if (!country.isNullOrBlank()) eq("country", country)
+            }
+            order(column = "username", order = Order.ASCENDING)
+            limit(count = 50)
+        }.decodeList<CommunityProfile>()
+    }
+
+    suspend fun getCommunityRanking(country: String? = null): List<CommunityProfile> {
+        return client.from("community_profiles").select {
+            filter {
+                if (!country.isNullOrBlank()) eq("country", country)
+            }
+            order(column = "chapa_count", order = Order.DESCENDING)
+            order(column = "username", order = Order.ASCENDING)
+            limit(count = 50)
+        }.decodeList<CommunityProfile>()
+    }
+
+    suspend fun searchCommunityChapas(query: String): List<CommunityChapa> {
+        if (query.isBlank()) return emptyList()
+        return client.from("community_chapas").select {
+            filter { ilike("nombre", "%${query.trim()}%") }
+            order(column = "nombre", order = Order.ASCENDING)
+            limit(count = 100)
+        }.decodeList<CommunityChapa>()
+    }
+
+    suspend fun getCommunityCollection(userId: String): List<CommunityChapa> {
+        return client.from("community_chapas").select {
+            filter { eq("user_id", userId) }
+            order(column = "nombre", order = Order.ASCENDING)
+        }.decodeList<CommunityChapa>()
+    }
+
+    fun createPublicProfile(username: String, country: String) {
         val normalized = username.trim().lowercase()
+        val normalizedCountry = country.trim()
         viewModelScope.launch {
             _profileState.value = ProfileState.Loading
             try {
                 require(normalized.matches(Regex("^[a-z0-9_]{3,20}$"))) {
                     "Usa entre 3 y 20 caracteres: letras, números o guion bajo."
                 }
+                require(normalizedCountry.isNotBlank()) { "Selecciona tu país." }
                 val userId = client.auth.currentSessionOrNull()?.user?.id
                     ?: throw IllegalStateException("La sesión ha caducado. Inicia sesión de nuevo.")
+                val existingProfile = client.from("profiles").select {
+                    filter { eq("id", userId) }
+                }.decodeList<PublicProfile>().firstOrNull()
                 val exists = client.from("profiles").select {
                     filter { eq("username", normalized) }
-                }.decodeList<PublicProfile>().isNotEmpty()
+                }.decodeList<PublicProfile>().any { it.id != userId }
                 require(!exists) { "Ese nombre público ya está en uso." }
-                client.from("profiles").insert(PublicProfile(id = userId, username = normalized))
+                val profile = PublicProfile(id = userId, username = normalized, country = normalizedCountry)
+                if (existingProfile == null) {
+                    client.from("profiles").insert(profile)
+                } else {
+                    client.from("profiles").update(profile) {
+                        filter { eq("id", userId) }
+                    }
+                }
                 _profileState.value = ProfileState.Success
             } catch (e: Exception) {
                 val message = e.message.orEmpty()

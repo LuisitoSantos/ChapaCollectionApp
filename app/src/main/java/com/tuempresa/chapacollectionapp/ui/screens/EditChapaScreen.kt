@@ -80,6 +80,7 @@ import com.tuempresa.chapacollectionapp.components.AutoCompleteTextField
 import com.tuempresa.chapacollectionapp.components.CityAutoCompleteField
 import com.tuempresa.chapacollectionapp.components.OpcionesSelector
 import com.tuempresa.chapacollectionapp.ui.components.FechaObtencionField
+import com.tuempresa.chapacollectionapp.ui.components.EtiquetaChapaField
 import com.tuempresa.chapacollectionapp.utils.createImageUri
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -141,6 +142,7 @@ fun EditChapaScreen(
     var ciudadObtencion by remember(chapaId) { mutableStateOf(chapa.ciudadObtencion.orEmpty()) }
     var fechaObtencion by remember(chapaId) { mutableStateOf(chapa.fechaObtencion.orEmpty()) }
     var comentario by remember(chapaId) { mutableStateOf(chapa.comentario.orEmpty().take(500)) }
+    var etiqueta by remember(chapaId) { mutableStateOf(chapa.etiqueta) }
     val maxComentarioLength = 500
 
     var isSaving by remember { mutableStateOf(false) }
@@ -198,6 +200,7 @@ fun EditChapaScreen(
             }
             fechaObtencion = chapa.fechaObtencion.orEmpty()
             comentario = chapa.comentario.orEmpty().take(maxComentarioLength)
+            etiqueta = chapa.etiqueta
 
         }
     }
@@ -1115,6 +1118,8 @@ fun EditChapaScreen(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+            EtiquetaChapaField(value = etiqueta, onValueChange = { etiqueta = it })
+            Spacer(modifier = Modifier.height(12.dp))
             FechaObtencionField(
                 value = fechaObtencion,
                 onValueChange = { fechaObtencion = it }
@@ -1204,7 +1209,8 @@ fun EditChapaScreen(
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
                                 ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
                                 fechaObtencion = fechaObtencion.ifBlank { null },
-                                comentario = comentario.trim().ifBlank { null }
+                                comentario = comentario.trim().ifBlank { null },
+                                etiqueta = etiqueta
                             )
 
                             val uriNueva = if (nuevaImagenUri != null) finalImageUri else null
@@ -1307,7 +1313,8 @@ fun EditChapaScreen(
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
                                 ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
                                 fechaObtencion = fechaObtencion.ifBlank { null },
-                                comentario = comentario.trim().ifBlank { null }
+                                comentario = comentario.trim().ifBlank { null },
+                                etiqueta = etiqueta
                             )
 
                             // --- CAMBIO CLAVE AQUÍ ---
@@ -1397,7 +1404,8 @@ fun EditChapaScreen(
                                 paisObtencion = if (procedencia != "") paisObtencion.text else null,
                                 ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
                                 fechaObtencion = fechaObtencion.ifBlank { null },
-                                comentario = comentario.trim().ifBlank { null }
+                                comentario = comentario.trim().ifBlank { null },
+                                etiqueta = etiqueta
                             )
 
                             // El recorte puede implicar leer la imagen remota. Se procesa fuera del hilo UI.

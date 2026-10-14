@@ -1,5 +1,9 @@
 package com.tuempresa.chapacollectionapp.ui.components
 
+import android.media.MediaPlayer
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import com.tuempresa.chapacollectionapp.R
 import com.tuempresa.chapacollectionapp.ui.theme.ChapaNavy
 import com.tuempresa.chapacollectionapp.ui.theme.ChapaOrange
 import com.tuempresa.chapacollectionapp.ui.theme.ChapaBackground
@@ -35,8 +41,53 @@ import kotlinx.coroutines.delay
 
 const val MINIMUM_SPLASH_DURATION_MS = 2_200L
 
+private object BeerPourSound {
+    private var player: MediaPlayer? = null
+    private var lastStartedAt = 0L
+    private val handler = Handler(Looper.getMainLooper())
+
+    fun play(context: android.content.Context) {
+        if (player?.isPlaying == true) return
+        val now = SystemClock.elapsedRealtime()
+        if (lastStartedAt != 0L && now - lastStartedAt < 3_000L) return
+        lastStartedAt = now
+        release()
+        player = MediaPlayer.create(context.applicationContext, R.raw.beer_pour)?.also { audio ->
+            audio.setOnCompletionListener {
+                if (player === it) player = null
+                it.release()
+            }
+            audio.start()
+            // Mantiene el vertido al comienzo y baja el volumen al acercarse la espuma.
+            for (step in 1..12) {
+                handler.postDelayed({
+                    if (player === audio) {
+                        val volume = (1f - step / 12f).coerceAtLeast(0f)
+                        runCatching { audio.setVolume(volume, volume) }
+                        if (step == 12) stop()
+                    }
+                }, 1_000L + step * 100L)
+            }
+        }
+    }
+
+    fun stop() {
+        handler.removeCallbacksAndMessages(null)
+        release()
+    }
+
+    private fun release() {
+        player?.let { audio ->
+            player = null
+            runCatching { if (audio.isPlaying) audio.stop() }
+            audio.release()
+        }
+    }
+}
+
 @Composable
 fun BeerLoadingScreen(isLoading: Boolean) {
+    val context = LocalContext.current
     var logoVisible by remember { mutableFloatStateOf(0f) }
     var beerProgress by remember { mutableFloatStateOf(0f) }
     val animatedBeerProgress by animateFloatAsState(
@@ -57,6 +108,7 @@ fun BeerLoadingScreen(isLoading: Boolean) {
 
     LaunchedEffect(isLoading) {
         if (isLoading) {
+            BeerPourSound.play(context)
             logoVisible = 0f
             beerProgress = 0f
             delay(180)
@@ -65,6 +117,7 @@ fun BeerLoadingScreen(isLoading: Boolean) {
                 delay(45)
             }
         } else {
+            BeerPourSound.stop()
             beerProgress = 1f
         }
         logoVisible = 1f

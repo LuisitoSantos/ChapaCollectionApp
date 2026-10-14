@@ -35,6 +35,8 @@ data class Chapa @OptIn(ExperimentalSerializationApi::class) constructor(
     val ciudadObtencion: String? = null,
     @SerialName("fecha_obtencion") val fechaObtencion: String? = null,
     val comentario: String? = null,
+    @EncodeDefault
+    val etiqueta: String = "unknown",
     @SerialName("user_id") val userId: String? = null
 ) {
 

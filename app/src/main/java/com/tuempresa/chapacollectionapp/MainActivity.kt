@@ -57,6 +57,7 @@ import com.tuempresa.chapacollectionapp.ui.screens.ChapaMapScreen
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModel
 import com.tuempresa.chapacollectionapp.ui.screens.LoginScreen
 import com.tuempresa.chapacollectionapp.ui.screens.ProfileSetupScreen
+import com.tuempresa.chapacollectionapp.ui.screens.CommunityScreen
 import com.tuempresa.chapacollectionapp.ui.components.BeerLoadingScreen
 import com.tuempresa.chapacollectionapp.ui.components.MINIMUM_SPLASH_DURATION_MS
 import com.tuempresa.chapacollectionapp.viewmodel.AuthViewModelFactory
@@ -409,12 +410,7 @@ fun MainAppContent(chapaViewModel: ChapaViewModel, authViewModel: AuthViewModel,
                 composable(Screen.Mapa.route) { }
                 composable(Screen.Buscar.route) { SearchChapaScreen(chapaViewModel, snackNavController) }
                 composable(Screen.Comunidad.route) {
-                    androidx.compose.foundation.layout.Box(
-                        Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Comunidad · Próximamente")
-                    }
+                    CommunityScreen(authViewModel)
                 }
                 composable(Screen.Anadir.route) { AddChapaScreen(chapaViewModel, snackNavController) }
             }

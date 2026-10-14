@@ -65,6 +65,7 @@ import com.tuempresa.chapacollectionapp.utils.recortarImagenVisibleDesdeUri
 import com.tuempresa.chapacollectionapp.utils.rotateBitmapIfRequired
 import com.tuempresa.chapacollectionapp.viewmodel.ChapaViewModel
 import com.tuempresa.chapacollectionapp.ui.components.FechaObtencionField
+import com.tuempresa.chapacollectionapp.ui.components.EtiquetaChapaField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -101,6 +102,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
     var ciudadObtencion by remember { mutableStateOf("") }
     var fechaObtencion by rememberSaveable { mutableStateOf("") }
     var comentario by rememberSaveable { mutableStateOf("") }
+    var etiqueta by rememberSaveable { mutableStateOf("unknown") }
     val maxComentarioLength = 500
 
     // Listas de opciones fijas
@@ -1084,6 +1086,8 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+            EtiquetaChapaField(value = etiqueta, onValueChange = { etiqueta = it })
+            Spacer(modifier = Modifier.height(12.dp))
             FechaObtencionField(
                 value = fechaObtencion,
                 onValueChange = { fechaObtencion = it }
@@ -1241,6 +1245,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                             ciudadObtencion = if (procedencia != "") ciudadObtencion else null,
                             fechaObtencion = fechaObtencion.ifBlank { null },
                             comentario = comentario.trim().ifBlank { null },
+                            etiqueta = etiqueta,
                             imagePath = null // Se actualizará en el servicio tras subir la foto
                         )
 
@@ -1257,6 +1262,7 @@ fun AddChapaScreen(viewModel: ChapaViewModel, navController: NavHostController) 
                         anio = TextFieldValue("")
                         fechaObtencion = ""
                         comentario = ""
+                        etiqueta = "unknown"
                         imageUriState.value = null
 
                         navController.navigate(Screen.Lista.route) {

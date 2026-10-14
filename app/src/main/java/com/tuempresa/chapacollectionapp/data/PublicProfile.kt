@@ -6,5 +6,6 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class PublicProfile(
     val id: String,
-    @SerialName("username") val username: String
+    @SerialName("username") val username: String,
+    val country: String? = null
 )
